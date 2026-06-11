@@ -1,0 +1,49 @@
+/**
+ * ZMEY — игровая UI-палитра (1987, джунгли, хаки).
+ */
+:root {
+  --zmey-void: #0c1008;
+  --zmey-void-deep: #060804;
+  --zmey-jungle: #141c0e;
+
+  /* Прозрачные бортики */
+  --zmey-rail-bg: rgba(10, 14, 8, 0.38);
+  --zmey-rail-bg-hover: rgba(14, 20, 10, 0.52);
+  --zmey-rail-bg-pressed: rgba(8, 12, 6, 0.48);
+  --zmey-rail-border: rgba(196, 181, 116, 0.24);
+  --zmey-rail-border-hover: rgba(212, 192, 120, 0.42);
+  --zmey-rail-blur: blur(5px);
+
+  /* Хаки / олива (текст и уголки) */
+  --zmey-khaki: #c4b574;
+  --zmey-khaki-bright: #e8d78a;
+  --zmey-khaki-dim: #8a8050;
+  --zmey-olive-deep: #2f3a1e;
+  --zmey-moss: #3d5228;
+  --zmey-moss-bright: #6b8a42;
+
+  /* Служебные (полосы HP — приглушённые) */
+  --zmey-rust: #9a5030;
+  --zmey-blood: #5a2018;
+  --zmey-smoke: rgba(12, 16, 8, 0.55);
+
+  --zmey-text: #e2dbb8;
+  --zmey-text-muted: #9a9468;
+  --zmey-text-dim: #6e6848;
+
+  --font-display: "Russo One", "Arial Narrow", sans-serif;
+  --font-ui: "PT Sans Narrow", "Segoe UI", sans-serif;
+
+  --text-xs: 0.7rem;
+  --text-sm: 0.8rem;
+  --text-md: 0.95rem;
+  --text-lg: 1.05rem;
+  --tracking-stencil: 0.14em;
+  --tracking-ui: 0.06em;
+
+  --corner-size: 9px;
+  --corner-weight: 1px;
+  --radius-ui: 0;
+
+  --ease-ui: 0.14s ease;
+}

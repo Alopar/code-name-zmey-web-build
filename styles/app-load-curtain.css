@@ -1,0 +1,22 @@
+.app-load-curtain {
+  position: fixed;
+  inset: 0;
+  z-index: 100000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: radial-gradient(
+    ellipse at 50% 30%,
+    var(--zmey-olive-deep) 0%,
+    var(--zmey-void) 55%,
+    var(--zmey-void-deep) 100%
+  );
+  pointer-events: auto;
+  transition: opacity 0.35s ease, visibility 0.35s ease;
+}
+
+.app-load-curtain.is-dismissed {
+  opacity: 0;
+  visibility: hidden;
+  pointer-events: none;
+}

@@ -1,0 +1,114 @@
+/* Логический viewport 1920×1080; масштаб задаётся из JS (равномерный scale). */
+
+/*
+ * Ввод: только #app-viewport (letterbox и фон страницы не интерактивны).
+ * world-view — Phaser; screen-view — только .ui-hit и контролы.
+ */
+#app-viewport,
+#app-viewport * {
+  -webkit-touch-callout: none;
+}
+
+#app-viewport {
+  position: relative;
+  width: 1920px;
+  height: 1080px;
+  flex-shrink: 0;
+  transform-origin: center center;
+  overflow: hidden;
+  background: var(--zmey-jungle);
+  pointer-events: auto;
+  box-shadow:
+    0 0 0 1px var(--zmey-border-dim),
+    0 12px 48px rgba(0, 0, 0, 0.65);
+  -webkit-tap-highlight-color: transparent;
+}
+
+#app-viewport img,
+#app-viewport canvas {
+  -webkit-user-drag: none;
+  user-drag: none;
+}
+
+#world-view,
+#screen-view {
+  position: absolute;
+  left: 0;
+  top: 0;
+  width: 1920px;
+  height: 1080px;
+  overflow: hidden;
+}
+
+#world-view {
+  z-index: 0;
+  pointer-events: auto;
+}
+
+#world-view canvas {
+  display: block;
+  width: 1920px !important;
+  height: 1080px !important;
+  pointer-events: auto;
+}
+
+#screen-view {
+  z-index: 1;
+  pointer-events: none;
+}
+
+#screen-view .ui-panel {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+  display: flex;
+  flex-direction: column;
+}
+
+#screen-view .ui-panel.is-active {
+  pointer-events: none;
+}
+
+#screen-view .ui-panel[hidden] {
+  display: none !important;
+}
+
+/* DOM UI: только явные цели клика; остальное — в world-view */
+#screen-view .ui-hit,
+#screen-view button,
+#screen-view a,
+#screen-view input,
+#screen-view select,
+#screen-view textarea,
+#screen-view [role="button"] {
+  pointer-events: auto;
+}
+
+#world-view.is-input-blocked,
+#world-view.is-input-blocked canvas {
+  pointer-events: none !important;
+}
+
+#modal-root {
+  position: absolute;
+  left: 0;
+  top: 0;
+  width: 1920px;
+  height: 1080px;
+  z-index: 8;
+  pointer-events: none;
+}
+
+#modal-root.is-active {
+  pointer-events: auto;
+}
+
+#scene-load-overlay {
+  pointer-events: none;
+}
+
+#scene-load-overlay.is-active {
+  pointer-events: auto;
+}

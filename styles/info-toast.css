@@ -1,0 +1,87 @@
+/* Изолированные стили инфотостов HUD */
+
+.info-toast-root {
+  position: absolute;
+  inset: 0;
+  z-index: 5;
+  pointer-events: none;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: flex-start;
+  padding-top: var(--info-toast-anchor-top, 80px);
+  gap: var(--info-toast-stack-gap, 10px);
+}
+
+.info-toast {
+  position: relative;
+  box-sizing: border-box;
+  width: var(--info-toast-width, 300px);
+  padding: 0.55rem 0.75rem;
+  pointer-events: auto;
+  cursor: pointer;
+  font-family: var(--font-ui);
+  font-weight: 700;
+  font-size: var(--text-sm);
+  letter-spacing: var(--tracking-ui);
+  color: var(--zmey-text);
+  background: var(--zmey-rail-bg);
+  border: 1px solid var(--zmey-rail-border);
+  backdrop-filter: var(--zmey-rail-blur);
+  -webkit-backdrop-filter: var(--zmey-rail-blur);
+  text-align: center;
+  white-space: normal;
+  word-break: break-word;
+  animation: info-toast-drop-in var(--info-toast-enter-duration, 320ms) ease-out;
+}
+
+.info-toast::before {
+  content: "";
+  position: absolute;
+  inset: 5px;
+  pointer-events: none;
+  opacity: 0.75;
+  background:
+    linear-gradient(to right, var(--zmey-khaki-dim), var(--zmey-khaki-dim)) left top /
+      var(--corner-size) var(--corner-weight) no-repeat,
+    linear-gradient(to bottom, var(--zmey-khaki-dim), var(--zmey-khaki-dim)) left top /
+      var(--corner-weight) var(--corner-size) no-repeat,
+    linear-gradient(to left, var(--zmey-khaki-dim), var(--zmey-khaki-dim)) right top /
+      var(--corner-size) var(--corner-weight) no-repeat,
+    linear-gradient(to bottom, var(--zmey-khaki-dim), var(--zmey-khaki-dim)) right top /
+      var(--corner-weight) var(--corner-size) no-repeat,
+    linear-gradient(to right, var(--zmey-khaki-dim), var(--zmey-khaki-dim)) left bottom /
+      var(--corner-size) var(--corner-weight) no-repeat,
+    linear-gradient(to top, var(--zmey-khaki-dim), var(--zmey-khaki-dim)) left bottom /
+      var(--corner-weight) var(--corner-size) no-repeat,
+    linear-gradient(to left, var(--zmey-khaki-dim), var(--zmey-khaki-dim)) right bottom /
+      var(--corner-size) var(--corner-weight) no-repeat,
+    linear-gradient(to top, var(--zmey-khaki-dim), var(--zmey-khaki-dim)) right bottom /
+      var(--corner-weight) var(--corner-size) no-repeat;
+}
+
+.info-toast.is-exiting {
+  animation: info-toast-fade-out var(--info-toast-exit-duration, 200ms) ease forwards;
+}
+
+@keyframes info-toast-drop-in {
+  from {
+    opacity: 0;
+    transform: translateY(calc(-1 * var(--info-toast-enter-offset, 48px)));
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes info-toast-fade-out {
+  from {
+    opacity: 1;
+    transform: translateY(0);
+  }
+  to {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+}
