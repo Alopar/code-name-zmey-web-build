@@ -202,7 +202,8 @@
                 hidden
               ></footer>
               <footer class="ui-hud ui-frame ui-frame--rail ui-frame--rail-bottom ui-hud--bottom ui-hud--combat ui-hit">
-                <button type="button" class="ui-btn ui-hit" id="btn-attack">Атака</button>
+                <button type="button" class="ui-btn ui-hit" id="btn-attack-primary" data-weapon-slot="primary">Кулак</button>
+                <button type="button" class="ui-btn ui-hit" id="btn-attack-secondary" data-weapon-slot="secondary">Нож</button>
                 <button type="button" class="ui-btn ui-hit" id="btn-wait">Ждать</button>
                 <button
                   type="button"
@@ -419,7 +420,7 @@
       aria-hidden="true"
     >
       <div class="portrait-orientation-overlay__inner">
-        <div class="portrait-orientation-overlay__icon" aria-hidden="true"></div>
+        <span class="portrait-orientation-overlay__icon" aria-hidden="true">🔄</span>
         <p class="portrait-orientation-overlay__title">Поверните устройство</p>
         <p class="portrait-orientation-overlay__text">
           Игра рассчитана на горизонтальный экран. Разверните телефон или нажмите кнопку ниже.

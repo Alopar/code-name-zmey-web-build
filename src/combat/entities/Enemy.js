@@ -10,13 +10,30 @@ export class Enemy extends Combatant {
    *   id: string,
    *   hp: number,
    *   maxHp: number,
-   *   weaponId: string,
+   *   primaryWeaponId: string,
+   *   secondaryWeaponId?: string | null,
    *   name: string,
    *   visual: { assetKey: string, idle: number, attack: number },
    * }} data
    */
-  constructor({ enemyId, id, hp, maxHp, weaponId, name, visual }) {
-    super({ id, hp, maxHp, weaponId, name });
+  constructor({
+    enemyId,
+    id,
+    hp,
+    maxHp,
+    primaryWeaponId,
+    secondaryWeaponId = null,
+    name,
+    visual,
+  }) {
+    super({
+      id,
+      hp,
+      maxHp,
+      primaryWeaponId,
+      secondaryWeaponId,
+      name,
+    });
     this.enemyId = enemyId;
     this.visual = visual;
   }

@@ -1,4 +1,5 @@
 import { ResourceStock } from "../../party/entities/ResourceStock.js";
+import { WEAPON_SLOTS } from "../../weapon/weaponSlots.js";
 
 /**
  * Участник боя (игрок или базовая модель).
@@ -9,18 +10,42 @@ export class Combatant {
    *   id: string,
    *   hp: number,
    *   maxHp: number,
-   *   weaponId: string,
+   *   primaryWeaponId: string,
+   *   secondaryWeaponId?: string | null,
    *   name?: string,
    *   resources?: ResourceStock,
    * }} data
    */
-  constructor({ id, hp, maxHp, weaponId, name, resources = null }) {
+  constructor({
+    id,
+    hp,
+    maxHp,
+    primaryWeaponId,
+    secondaryWeaponId = null,
+    name,
+    resources = null,
+  }) {
     this.id = id;
     this.hp = hp;
     this.maxHp = maxHp;
-    this.weaponId = weaponId;
+    this.primaryWeaponId = primaryWeaponId;
+    this.secondaryWeaponId = secondaryWeaponId;
     this.name = name ?? id;
     this.resources = resources;
+  }
+
+  /**
+   * @param {import("../../weapon/weaponSlots.js").WeaponSlot} slot
+   * @returns {string | null}
+   */
+  getWeaponIdForSlot(slot) {
+    if (slot === WEAPON_SLOTS.primary) {
+      return this.primaryWeaponId;
+    }
+    if (slot === WEAPON_SLOTS.secondary) {
+      return this.secondaryWeaponId;
+    }
+    return null;
   }
 
   /** @param {string} resourceId */
@@ -62,13 +87,14 @@ export class Combatant {
     return Math.round((this.hp / this.maxHp) * 100);
   }
 
-  /** @returns {{ id: string, hp: number, maxHp: number, weaponId: string, name: string, hpPercent: number, resources: ReturnType<ResourceStock["toSnapshot"]> }} */
+  /** @returns {{ id: string, hp: number, maxHp: number, primaryWeaponId: string, secondaryWeaponId: string | null, name: string, hpPercent: number, resources: ReturnType<ResourceStock["toSnapshot"]> }} */
   toSnapshot() {
     return {
       id: this.id,
       hp: this.hp,
       maxHp: this.maxHp,
-      weaponId: this.weaponId,
+      primaryWeaponId: this.primaryWeaponId,
+      secondaryWeaponId: this.secondaryWeaponId,
       name: this.name,
       hpPercent: this.getHpPercent(),
       resources: this.resources?.toSnapshot() ?? [],

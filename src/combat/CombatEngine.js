@@ -22,6 +22,8 @@ import { INFO_TOAST_TYPES } from "../ui/infoToast/config/infoToastTypes.js";
 import { delay } from "./delay.js";
 import { CombatSequencer } from "./CombatSequencer.js";
 import { calcWeaponDamage, rollDamageInRange } from "../weapon/calcDamage.js";
+import { getWeaponConfig } from "../weapon/config/weapons.js";
+import { WEAPON_SLOT_ORDER } from "../weapon/weaponSlots.js";
 import {
   COMBAT_ACTION_IDS,
   CombatActionPoints,
@@ -217,12 +219,22 @@ export class CombatEngine {
     this.#broadcastState();
   }
 
-  requestPlayerAttack() {
+  /**
+   * @param {import("../weapon/weaponSlots.js").WeaponSlot} slot
+   */
+  requestPlayerWeaponAttack(slot) {
     if (this.phase !== "player") {
       return;
     }
 
-    if (!this.actionPoints.canUse(COMBAT_ACTION_IDS.attack, DEFAULT_ACTION_COST)) {
+    const { player } = this.encounter;
+    const weaponId = player.getWeaponIdForSlot(slot);
+    if (!weaponId) {
+      return;
+    }
+
+    const actionId = COMBAT_ACTION_IDS.attack(slot);
+    if (!this.actionPoints.canUse(actionId, DEFAULT_ACTION_COST)) {
       return;
     }
 
@@ -231,12 +243,11 @@ export class CombatEngine {
       return;
     }
 
-    if (!this.actionPoints.spend(COMBAT_ACTION_IDS.attack, DEFAULT_ACTION_COST)) {
+    if (!this.actionPoints.spend(actionId, DEFAULT_ACTION_COST)) {
       return;
     }
 
-    const { player } = this.encounter;
-    const damage = calcWeaponDamage(player.weaponId);
+    const damage = calcWeaponDamage(weaponId);
 
     this.#beginPlayerActionResolution();
     this.#broadcastState();
@@ -685,7 +696,7 @@ export class CombatEngine {
       return true;
     }
 
-    const damage = calcWeaponDamage(enemy.weaponId);
+    const damage = calcWeaponDamage(enemy.primaryWeaponId);
     player.takeDamage(damage);
     emit(GameEvents.COMBAT_SCREEN_FEEDBACK_REQUEST, {
       type: "player_hit",
@@ -768,17 +779,10 @@ export class CombatEngine {
     this.#sanitizeSelectedTarget();
     const canAct = this.phase === "player";
     const { player } = this.encounter;
-    const hasAliveEnemies = this.#getAliveEnemies().length > 0;
-    const canAttackReady =
-      hasAliveEnemies &&
-      this.actionPoints.canUse(COMBAT_ACTION_IDS.attack, DEFAULT_ACTION_COST);
-    const canAttack = canAct && canAttackReady;
 
     emit(GameEvents.COMBAT_STATE, {
       phase: this.phase,
       canAct,
-      canAttack,
-      canAttackReady,
       actionsLock: this.#getActionsLock(),
       victory: this.victory,
       selectedTargetId: this.selectedTargetId,
@@ -787,7 +791,39 @@ export class CombatEngine {
       lootDrops: this.#lootDrops.filter((d) => !d.pickedUp).map((d) => d.toSnapshot()),
       chests: this.#chests.map((c) => c.toSnapshot()),
       actionPoints: this.actionPoints.toSnapshot(),
+      weaponAttacks: this.#buildWeaponAttackStates(canAct, player),
       abilities: this.#buildAbilityStates(canAct, player),
+    });
+  }
+
+  /**
+   * @param {boolean} canAct
+   * @param {import("./entities/Combatant.js").Combatant} player
+   */
+  #buildWeaponAttackStates(canAct, player) {
+    const hasAliveEnemies = this.#getAliveEnemies().length > 0;
+
+    return WEAPON_SLOT_ORDER.flatMap((slot) => {
+      const weaponId = player.getWeaponIdForSlot(slot);
+      if (!weaponId) {
+        return [];
+      }
+
+      const { name } = getWeaponConfig(weaponId);
+      const canUseActionPoints = this.actionPoints.canUse(
+        COMBAT_ACTION_IDS.attack(slot),
+        DEFAULT_ACTION_COST,
+      );
+      const canUseReady = hasAliveEnemies && canUseActionPoints;
+      const canUse = canAct && canUseReady;
+
+      return {
+        slot,
+        weaponId,
+        name,
+        canUse,
+        canUseReady,
+      };
     });
   }
 

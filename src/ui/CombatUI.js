@@ -62,6 +62,16 @@ function renderActionPoints(actionPoints) {
   block.setAttribute("aria-label", `Очки действия: ${current} из ${max}`);
 }
 
+/** @type {Readonly<Record<string, { button: HTMLElement | null }>>} */
+const WEAPON_ATTACK_UI = Object.freeze({
+  primary: {
+    button: document.getElementById("btn-attack-primary"),
+  },
+  secondary: {
+    button: document.getElementById("btn-attack-secondary"),
+  },
+});
+
 /** @type {Readonly<Record<string, { button: HTMLElement | null, label: HTMLElement | null, countEl: HTMLElement | null }>>} */
 const COMBAT_ABILITY_UI = Object.freeze({
   stimulator: {
@@ -77,24 +87,22 @@ const COMBAT_ABILITY_UI = Object.freeze({
 });
 
 export function initCombatUI() {
-  const attackBtn = document.getElementById("btn-attack");
   const waitBtn = document.getElementById("btn-wait");
   const playerFill = document.getElementById("combat-player-hp-fill");
   const playerBar = document.getElementById("combat-player-hp-bar");
   const heroNameEl = document.getElementById("combat-hero-name");
 
+  const weaponAttackButtons = Object.values(WEAPON_ATTACK_UI)
+    .map((ui) => ui.button)
+    .filter((btn) => btn instanceof HTMLElement);
   const abilityButtons = Object.values(COMBAT_ABILITY_UI)
     .map((ui) => ui.button)
     .filter((btn) => btn instanceof HTMLElement);
-  const combatActionButtons = [attackBtn, waitBtn, ...abilityButtons];
+  const combatActionButtons = [...weaponAttackButtons, waitBtn, ...abilityButtons];
 
   function applyBusyLock(detail) {
-    const canAttackReady = detail?.canAttackReady ?? false;
-    setCombatButtonState(
-      attackBtn,
-      canAttackReady ? { busy: true } : { unavailable: true },
-    );
     setCombatButtonState(waitBtn, { busy: true });
+    updateWeaponAttackButtons(detail.weaponAttacks, { mode: "busy" });
     updateAbilityButtons(detail.abilities, { mode: "busy" });
   }
 
@@ -118,17 +126,64 @@ export function initCombatUI() {
     }
   }
 
-  /**
-   * @param {boolean} canAttack
-   */
-  function updateCombatActionButtons(canAttack) {
-    setCombatButtonState(attackBtn, { unavailable: !canAttack });
-    setCombatButtonState(waitBtn, { unavailable: false });
-  }
-
   function lockCombatActionsForTurn() {
     for (const btn of combatActionButtons) {
       setCombatButtonState(btn, { unavailable: true });
+    }
+  }
+
+  /**
+   * @param {string} slot
+   * @param {{ slot: string, name: string, canUse: boolean, canUseReady?: boolean }} weaponAttack
+   * @param {{ mode?: "busy" | "turn", unavailable?: boolean }} [lock]
+   */
+  function updateWeaponAttackButton(slot, weaponAttack, lock = {}) {
+    const ui = WEAPON_ATTACK_UI[slot];
+    if (!ui?.button) {
+      return;
+    }
+
+    ui.button.hidden = false;
+    ui.button.textContent = weaponAttack.name;
+    ui.button.setAttribute("aria-label", weaponAttack.name);
+
+    if (lock.mode === "busy") {
+      const canUseReady = weaponAttack.canUseReady ?? false;
+      setCombatButtonState(
+        ui.button,
+        canUseReady ? { busy: true } : { unavailable: true },
+      );
+      return;
+    }
+
+    setCombatButtonState(ui.button, {
+      unavailable: lock.unavailable || lock.mode === "turn" || !weaponAttack.canUse,
+    });
+  }
+
+  /**
+   * @param {Array<{ slot: string, name: string, canUse: boolean, canUseReady?: boolean }>} [weaponAttacks]
+   * @param {{ mode?: "busy" | "turn", unavailable?: boolean }} [lock]
+   */
+  function updateWeaponAttackButtons(weaponAttacks, lock = {}) {
+    const attackSlots = new Set(weaponAttacks?.map((attack) => attack.slot) ?? []);
+
+    for (const [slot, ui] of Object.entries(WEAPON_ATTACK_UI)) {
+      if (!ui.button) {
+        continue;
+      }
+
+      if (!attackSlots.has(slot)) {
+        ui.button.hidden = true;
+      }
+    }
+
+    if (!weaponAttacks?.length) {
+      return;
+    }
+
+    for (const weaponAttack of weaponAttacks) {
+      updateWeaponAttackButton(weaponAttack.slot, weaponAttack, lock);
     }
   }
 
@@ -204,11 +259,10 @@ export function initCombatUI() {
    * @param {{
    *   phase?: string,
    *   canAct?: boolean,
-   *   canAttack?: boolean,
-   *   canAttackReady?: boolean,
    *   actionsLock?: "none" | "busy" | "turn",
    *   actionPoints?: { current: number, max: number },
    *   player?: { name?: string, hpPercent: number },
+   *   weaponAttacks?: Array<{ slot: string, name: string, canUse: boolean, canUseReady?: boolean }>,
    *   abilities?: Array<{ id: string, name: string, resourceCount?: number, cooldownRemaining: number, canUse: boolean }>
    * }} detail
    */
@@ -224,6 +278,7 @@ export function initCombatUI() {
 
     if (detail?.phase === "ended") {
       lockPostCombatActions();
+      updateWeaponAttackButtons(detail.weaponAttacks, { mode: "turn" });
       updateAbilityButtons(detail.abilities, { mode: "turn" });
       return;
     }
@@ -237,11 +292,13 @@ export function initCombatUI() {
 
     if (actionsLock === "turn") {
       lockCombatActionsForTurn();
+      updateWeaponAttackButtons(detail.weaponAttacks, { mode: "turn" });
       updateAbilityButtons(detail.abilities, { mode: "turn" });
       return;
     }
 
-    updateCombatActionButtons(detail?.canAttack ?? false);
+    updateWeaponAttackButtons(detail?.weaponAttacks);
+    setCombatButtonState(waitBtn, { unavailable: false });
     updateAbilityButtons(detail.abilities);
   }
 
@@ -268,10 +325,12 @@ export function initCombatUI() {
     }
   });
 
-  attackBtn?.addEventListener("click", (event) => {
-    event.stopPropagation();
-    CombatSession.getEngine()?.requestPlayerAttack();
-  });
+  for (const [slot, ui] of Object.entries(WEAPON_ATTACK_UI)) {
+    ui.button?.addEventListener("click", (event) => {
+      event.stopPropagation();
+      CombatSession.getEngine()?.requestPlayerWeaponAttack(slot);
+    });
+  }
 
   waitBtn?.addEventListener("click", (event) => {
     event.stopPropagation();

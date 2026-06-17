@@ -7,7 +7,7 @@ import { Enemy } from "./entities/Enemy.js";
  * @typedef {object} CombatSetup
  * @property {{ id: string, bgKey: string, chestId?: string }} location
  * @property {Record<string, unknown>} [settings]
- * @property {{ name: string, hp: number, maxHp: number, weaponId: string, combatAbilityIds?: string[], tacticalResources?: Record<string, number> }} player
+ * @property {{ name: string, hp: number, maxHp: number, primaryWeaponId: string, secondaryWeaponId?: string | null, combatAbilityIds?: string[], tacticalResources?: Record<string, number> }} player
  * @property {{ enemyId: string }[]} enemies
  */
 
@@ -20,7 +20,8 @@ export function createCombatEncounter(setup) {
     name: setup.player.name,
     hp: setup.player.hp,
     maxHp: setup.player.maxHp,
-    weaponId: setup.player.weaponId,
+    primaryWeaponId: setup.player.primaryWeaponId,
+    secondaryWeaponId: setup.player.secondaryWeaponId ?? null,
     resources: ResourceStock.fromInitial(setup.player.tacticalResources ?? {}),
   });
 
@@ -32,7 +33,7 @@ export function createCombatEncounter(setup) {
       name: cfg.name,
       hp: cfg.hp,
       maxHp: cfg.maxHp,
-      weaponId: cfg.weaponId,
+      primaryWeaponId: cfg.primaryWeaponId,
       visual: cfg.visual,
     });
   });

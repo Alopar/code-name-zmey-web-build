@@ -5,7 +5,7 @@ export const PLAYER_ACTION_POINTS_MAX = 2;
 export const DEFAULT_ACTION_COST = 1;
 
 export const COMBAT_ACTION_IDS = Object.freeze({
-  attack: "attack",
+  attack: (slot) => `attack:${slot}`,
   ability: (abilityId) => `ability:${abilityId}`,
 });
 

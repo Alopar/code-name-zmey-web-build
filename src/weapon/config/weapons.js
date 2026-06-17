@@ -1,5 +1,11 @@
 /** @type {Readonly<Record<string, object>>} */
 export const WEAPON_CONFIGS = Object.freeze({
+  fist: Object.freeze({
+    id: "fist",
+    name: "Кулак",
+    damageMin: 1,
+    damageMax: 2,
+  }),
   claws: Object.freeze({
     id: "claws",
     name: "Когти",

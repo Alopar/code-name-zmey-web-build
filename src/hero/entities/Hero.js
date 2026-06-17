@@ -9,16 +9,26 @@ export class Hero {
    *   name: string,
    *   hp: number,
    *   maxHp: number,
-   *   weaponId: string,
+   *   primaryWeaponId: string,
+   *   secondaryWeaponId?: string | null,
    *   combatAbilityIds?: readonly string[],
    * }} data
    */
-  constructor({ id, name, hp, maxHp, weaponId, combatAbilityIds = [] }) {
+  constructor({
+    id,
+    name,
+    hp,
+    maxHp,
+    primaryWeaponId,
+    secondaryWeaponId = null,
+    combatAbilityIds = [],
+  }) {
     this.id = id;
     this.name = name;
     this.hp = hp;
     this.maxHp = maxHp;
-    this.weaponId = weaponId;
+    this.primaryWeaponId = primaryWeaponId;
+    this.secondaryWeaponId = secondaryWeaponId;
     this.combatAbilityIds = combatAbilityIds;
   }
 
@@ -31,7 +41,8 @@ export class Hero {
       name: config.name,
       hp: config.hp,
       maxHp: config.maxHp,
-      weaponId: config.weaponId,
+      primaryWeaponId: config.primaryWeaponId,
+      secondaryWeaponId: config.secondaryWeaponId ?? null,
       combatAbilityIds: config.combatAbilityIds ?? [],
     });
   }
@@ -53,7 +64,8 @@ export class Hero {
   resetStats(config) {
     this.hp = config.hp;
     this.maxHp = config.maxHp;
-    this.weaponId = config.weaponId;
+    this.primaryWeaponId = config.primaryWeaponId;
+    this.secondaryWeaponId = config.secondaryWeaponId ?? null;
   }
 
   /** @returns {number} */
@@ -64,28 +76,30 @@ export class Hero {
     return Math.round((this.hp / this.maxHp) * 100);
   }
 
-  /** @returns {{ id: string, name: string, hp: number, maxHp: number, weaponId: string, hpPercent: number }} */
+  /** @returns {{ id: string, name: string, hp: number, maxHp: number, primaryWeaponId: string, secondaryWeaponId: string | null, hpPercent: number }} */
   toSnapshot() {
     return {
       id: this.id,
       name: this.name,
       hp: this.hp,
       maxHp: this.maxHp,
-      weaponId: this.weaponId,
+      primaryWeaponId: this.primaryWeaponId,
+      secondaryWeaponId: this.secondaryWeaponId,
       hpPercent: this.getHpPercent(),
     };
   }
 
   /**
    * @param {Record<string, number>} [tacticalResources]
-   * @returns {{ name: string, hp: number, maxHp: number, weaponId: string, combatAbilityIds: readonly string[], tacticalResources: Record<string, number> }}
+   * @returns {{ name: string, hp: number, maxHp: number, primaryWeaponId: string, secondaryWeaponId: string | null, combatAbilityIds: readonly string[], tacticalResources: Record<string, number> }}
    */
   toCombatSetup(tacticalResources = {}) {
     return {
       name: this.name,
       hp: this.hp,
       maxHp: this.maxHp,
-      weaponId: this.weaponId,
+      primaryWeaponId: this.primaryWeaponId,
+      secondaryWeaponId: this.secondaryWeaponId,
       combatAbilityIds: this.combatAbilityIds,
       tacticalResources,
     };

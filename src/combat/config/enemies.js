@@ -7,7 +7,7 @@ export const ENEMY_CONFIGS = Object.freeze({
     name: "Бабуин",
     hp: 8,
     maxHp: 8,
-    weaponId: "claws",
+    primaryWeaponId: "claws",
     loot: Object.freeze({
       drops: Object.freeze([
         //Object.freeze({ resourceId: "medkit", chance: 0.25, amount: 1 }),
