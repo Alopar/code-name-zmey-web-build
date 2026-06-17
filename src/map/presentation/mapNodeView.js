@@ -36,12 +36,12 @@ const TYPE_LABELS = Object.freeze({
  * @param {string} state
  * @param {boolean} hovered
  */
-function resolveColors(state, hovered) {
+function resolveColors(state, hovered, selectable) {
   const palette = STATE_PALETTE[state] ?? STATE_PALETTE[MapNodeState.LOCKED];
 
   return {
     fill: palette.fill,
-    border: hovered && state === MapNodeState.AVAILABLE ? HOVER_BORDER : palette.border,
+    border: hovered && selectable ? HOVER_BORDER : palette.border,
     icon: palette.icon,
   };
 }
@@ -117,12 +117,13 @@ export function createMapNodeView(scene, node, state, onSelect) {
 
   let hovered = false;
   let currentState = state;
+  let selectable = false;
 
   function applyVisual() {
-    const colors = resolveColors(currentState, hovered);
+    const colors = resolveColors(currentState, hovered, selectable);
     drawNodeFrame(frame, half, colors.fill, colors.border);
     label.setColor(colorToHex(colors.icon));
-    container.setScale(hovered && currentState === MapNodeState.AVAILABLE ? 1.04 : 1);
+    container.setScale(hovered && selectable ? 1.04 : 1);
   }
 
   function setState(nextState) {
@@ -130,11 +131,16 @@ export function createMapNodeView(scene, node, state, onSelect) {
     applyVisual();
   }
 
-  function setInteractive(enabled) {
+  function setSelectable(nextSelectable) {
+    selectable = nextSelectable;
+    applyVisual();
+
     container.removeAllListeners();
     container.disableInteractive();
 
-    if (!enabled || currentState !== MapNodeState.AVAILABLE) {
+    if (!selectable) {
+      hovered = false;
+      applyVisual();
       return;
     }
 
@@ -158,13 +164,13 @@ export function createMapNodeView(scene, node, state, onSelect) {
   }
 
   applyVisual();
-  setInteractive(true);
+  setSelectable(false);
 
   return {
     container,
     nodeId: node.id,
     setState,
-    setInteractive,
+    setSelectable,
     destroy: () => {
       container.destroy();
     },

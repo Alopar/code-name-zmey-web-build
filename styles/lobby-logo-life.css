@@ -1,0 +1,39 @@
+/* Анимация логотипа лобби. Параметры — константы в src/game/lobby/lobbyLogoLife.js */
+
+.ui-lobby-logo {
+  filter: var(--lobby-logo-filter-rest, drop-shadow(0 6px 20px rgba(0, 0, 0, 0.75)));
+}
+
+.ui-lobby-logo.is-alive {
+  animation:
+    lobby-logo-float var(--lobby-logo-float-duration, 5.8s) ease-in-out infinite,
+    lobby-logo-glow var(--lobby-logo-glow-duration, 3.8s) ease-in-out infinite;
+}
+
+@keyframes lobby-logo-float {
+  0%,
+  100% {
+    transform: translateY(0) scale(1);
+  }
+
+  50% {
+    transform: translateY(var(--lobby-logo-float-y, -5px)) scale(var(--lobby-logo-float-scale, 1.007));
+  }
+}
+
+@keyframes lobby-logo-glow {
+  0%,
+  100% {
+    filter: var(--lobby-logo-filter-rest, drop-shadow(0 6px 20px rgba(0, 0, 0, 0.75)));
+  }
+
+  50% {
+    filter: var(--lobby-logo-filter-glow-peak);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .ui-lobby-logo.is-alive {
+    animation: none;
+  }
+}

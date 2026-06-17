@@ -10,16 +10,21 @@ export const ENEMY_CONFIGS = Object.freeze({
     weaponId: "claws",
     loot: Object.freeze({
       drops: Object.freeze([
-        Object.freeze({ resourceId: "medkit", chance: 0.25, amount: 1 }),
-        Object.freeze({ resourceId: "stimulator", chance: 0.75, amount: 5 }),
+        //Object.freeze({ resourceId: "medkit", chance: 0.25, amount: 1 }),
+        //Object.freeze({ resourceId: "stimulator", chance: 0.75, amount: 5 }),
       ]),
     }),
     visual: Object.freeze({
       assetKey: AssetKey.ENEMY_BABOON,
       idle: EnemyBaboonFrame.IDLE,
       attack: EnemyBaboonFrame.ATTACK,
-      /** offsetY — центр тени (px кадра вверх от низа); widthScale/heightScale — размер; alpha — плотность */
+      /** sprite/shadow.offsetX/offsetY — px кадра; shadow.layer — "behind" | "front" */
+      sprite: Object.freeze({
+        offsetX: 0,
+        offsetY: 0,
+      }),
       shadow: Object.freeze({
+        offsetX: 0,
         offsetY: 160,
         widthScale: 0.9,
         heightScale: 0.3,

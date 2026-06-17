@@ -8,7 +8,7 @@ export const HERO_CONFIGS = Object.freeze({
     hp: 20,
     maxHp: 20,
     weaponId: "knife",
-    combatAbilityIds: Object.freeze(["stimulator"]),
+    combatAbilityIds: Object.freeze(["stimulator", "grenade"]),
   }),
 });
 

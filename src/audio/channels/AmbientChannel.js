@@ -14,6 +14,8 @@ export class AmbientChannel {
     this.current = null;
     /** @type {Promise<void> | null} */
     this.fadeTask = null;
+    /** @type {number} */
+    this.fadeGeneration = 0;
     /** @type {string[] | null} */
     this.sequenceKeys = null;
     /** @type {number} */
@@ -99,6 +101,9 @@ export class AmbientChannel {
       return;
     }
 
+    this.fadeGeneration += 1;
+    this.fadeTask = null;
+
     const multiplier = this.sequenceActive ? this.sequenceVolume : 1;
     this.current.setVolume(this.manager.getEffectiveVolume("ambient") * multiplier);
   }
@@ -133,12 +138,22 @@ export class AmbientChannel {
 
     const sound = this.game.sound.add(key, { loop });
     this.current = sound;
+    const generation = this.fadeGeneration;
 
     if (fadeInMs > 0) {
       sound.setVolume(0);
       sound.play();
-      this.fadeTask = fadeSoundVolume(sound, 0, targetVolume, fadeInMs);
+      this.fadeTask = fadeSoundVolume(
+        sound,
+        0,
+        targetVolume,
+        fadeInMs,
+        () => generation === this.fadeGeneration,
+      );
       await this.fadeTask;
+      if (generation !== this.fadeGeneration) {
+        return;
+      }
       return;
     }
 
@@ -167,6 +182,7 @@ export class AmbientChannel {
 
     const sound = this.game.sound.add(key, { loop: false });
     this.current = sound;
+    const generation = this.fadeGeneration;
 
     this.onCompleteHandler = () => {
       if (!this.sequenceActive || !this.sequenceKeys) {
@@ -183,8 +199,17 @@ export class AmbientChannel {
     if (fadeInMs > 0) {
       sound.setVolume(0);
       sound.play();
-      this.fadeTask = fadeSoundVolume(sound, 0, targetVolume, fadeInMs);
+      this.fadeTask = fadeSoundVolume(
+        sound,
+        0,
+        targetVolume,
+        fadeInMs,
+        () => generation === this.fadeGeneration,
+      );
       await this.fadeTask;
+      if (generation !== this.fadeGeneration) {
+        return;
+      }
       return;
     }
 

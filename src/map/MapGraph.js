@@ -83,8 +83,36 @@ export class MapGraph {
   /**
    * @param {string} nodeId
    */
+  isNeighborOfCurrent(nodeId) {
+    const current = this.getNode(this.currentNodeId);
+    return current.connections.includes(nodeId);
+  }
+
+  /**
+   * Перемещение по уже посещённой соседней ноде без входа (без боя).
+   * @param {string} nodeId
+   */
+  isTraversal(nodeId) {
+    return (
+      nodeId !== this.currentNodeId &&
+      this.visited.has(nodeId) &&
+      this.isNeighborOfCurrent(nodeId)
+    );
+  }
+
+  /**
+   * @param {string} nodeId
+   */
   canSelect(nodeId) {
-    return this.getNodeState(nodeId) === MapNodeState.AVAILABLE;
+    if (nodeId === this.currentNodeId) {
+      return false;
+    }
+
+    if (this.getNodeState(nodeId) === MapNodeState.AVAILABLE) {
+      return true;
+    }
+
+    return this.isTraversal(nodeId);
   }
 
   /**
@@ -96,6 +124,18 @@ export class MapGraph {
     }
 
     this.visited.add(nodeId);
+    this.currentNodeId = nodeId;
+  }
+
+  /**
+   * Обновляет текущую позицию при проходе через посещённую ноду.
+   * @param {string} nodeId
+   */
+  moveToNode(nodeId) {
+    if (!this.isTraversal(nodeId)) {
+      return;
+    }
+
     this.currentNodeId = nodeId;
   }
 

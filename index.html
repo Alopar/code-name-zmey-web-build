@@ -2,25 +2,29 @@
 <html lang="ru">
   <head>
     <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta
+      name="viewport"
+      content="width=device-width, initial-scale=1.0, viewport-fit=cover"
+    />
+    <meta name="mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
     <title>Code Name: ZMEY</title>
     <link rel="icon" type="image/png" sizes="512x512" href="./assets/images/site-icon.png" />
     <link rel="apple-touch-icon" href="./assets/images/site-icon.png" />
-    <link rel="preconnect" href="https://fonts.googleapis.com" />
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-    <link
-      href="https://fonts.googleapis.com/css2?family=PT+Sans+Narrow:wght@400;700&family=Russo+One&display=swap&subset=cyrillic,latin"
-      rel="stylesheet"
-    />
+    <link rel="manifest" href="./manifest.webmanifest" />
+    <link rel="stylesheet" href="./styles/fonts.css" />
     <link rel="stylesheet" href="./styles/base.css" />
     <link rel="stylesheet" href="./styles/layers.css" />
     <link rel="stylesheet" href="./styles/ui-theme.css" />
     <link rel="stylesheet" href="./styles/ui-panels.css" />
+    <link rel="stylesheet" href="./styles/lobby-logo-life.css" />
     <link rel="stylesheet" href="./styles/info-toast.css" />
     <link rel="stylesheet" href="./styles/ui-modals.css" />
     <link rel="stylesheet" href="./styles/ui-settings.css" />
     <link rel="stylesheet" href="./styles/narration.css" />
     <link rel="stylesheet" href="./styles/app-load-curtain.css" />
+    <link rel="stylesheet" href="./styles/portrait-orientation-overlay.css" />
     <link rel="stylesheet" href="./styles/scene-load-overlay.css" />
   </head>
   <body>
@@ -57,6 +61,30 @@
                 <span class="ui-lobby-debug__text">Debug</span>
               </label>
             </div>
+            <button
+              type="button"
+              class="ui-lobby-fullscreen ui-frame ui-hit"
+              id="btn-lobby-fullscreen"
+              aria-label="На весь экран"
+              aria-pressed="false"
+            >
+              <img
+                class="ui-lobby-fullscreen__icon ui-lobby-fullscreen__icon--enter"
+                src="./assets/images/ui/icon-fullscreen-expand.svg"
+                width="32"
+                height="32"
+                alt=""
+                draggable="false"
+              />
+              <img
+                class="ui-lobby-fullscreen__icon ui-lobby-fullscreen__icon--exit"
+                src="./assets/images/ui/icon-fullscreen-collapse.svg"
+                width="32"
+                height="32"
+                alt=""
+                draggable="false"
+              />
+            </button>
           </section>
 
           <section class="ui-panel" data-space="narration" aria-label="История" hidden>
@@ -155,6 +183,15 @@
                       style="width: 100%"
                     ></div>
                   </div>
+                  <div class="ui-ap-row" id="combat-player-ap" hidden>
+                    <span class="ui-ap-label">Действия</span>
+                    <div
+                      class="ui-ap-points"
+                      id="combat-player-ap-points"
+                      role="group"
+                      aria-label="Очки действия"
+                    ></div>
+                  </div>
                 </div>
               </div>
               <div class="ui-combat-actions-stack">
@@ -171,11 +208,23 @@
                   type="button"
                   class="ui-btn ui-btn--combat-ability ui-hit"
                   id="btn-combat-stimulator"
+                  data-combat-ability="stimulator"
                   aria-label="Стимулятор"
                 >
                   <span class="ui-icon-stimulator" aria-hidden="true"></span>
                   <span class="ui-btn__label" id="combat-stimulator-label">Стимулятор</span>
                   <span class="ui-btn__resource" id="combat-stimulator-count"><strong>0</strong></span>
+                </button>
+                <button
+                  type="button"
+                  class="ui-btn ui-btn--combat-ability ui-hit"
+                  id="btn-combat-grenade"
+                  data-combat-ability="grenade"
+                  aria-label="Граната"
+                >
+                  <span class="ui-icon-grenade" aria-hidden="true"></span>
+                  <span class="ui-btn__label" id="combat-grenade-label">Граната</span>
+                  <span class="ui-btn__resource" id="combat-grenade-count"><strong>0</strong></span>
                 </button>
               </footer>
             </div>
@@ -286,6 +335,33 @@
                     <input type="checkbox" class="ui-settings__checkbox" id="settings-fullscreen" />
                     <span class="ui-settings__toggle-text">На весь экран</span>
                   </label>
+                  <h3 class="ui-settings__heading">Интерфейс</h3>
+                  <div class="ui-settings__row">
+                    <span class="ui-settings__label" id="settings-ui-scale-label">Масштаб UI</span>
+                    <input
+                      type="range"
+                      class="ui-settings__range"
+                      id="settings-ui-scale"
+                      min="0"
+                      max="2"
+                      step="1"
+                      value="0"
+                      aria-labelledby="settings-ui-scale-label"
+                      aria-valuemin="0"
+                      aria-valuemax="2"
+                    />
+                    <span class="ui-settings__value" id="settings-ui-scale-value" aria-hidden="true">100%</span>
+                  </div>
+                  <h3 class="ui-settings__heading">Прочее</h3>
+                  <label class="ui-settings__toggle" for="settings-lobby-animated">
+                    <input
+                      type="checkbox"
+                      class="ui-settings__checkbox"
+                      id="settings-lobby-animated"
+                      checked
+                    />
+                    <span class="ui-settings__toggle-text">Анимированный главный экран</span>
+                  </label>
                 </div>
                 <footer class="ui-modal__footer ui-hit">
                   <button type="button" class="ui-btn ui-hit" id="btn-settings-reset">Сбросить</button>
@@ -335,10 +411,33 @@
       </div>
     </div>
 
+    <div
+      id="portrait-orientation-overlay"
+      class="portrait-orientation-overlay"
+      hidden
+      aria-live="polite"
+      aria-hidden="true"
+    >
+      <div class="portrait-orientation-overlay__inner">
+        <div class="portrait-orientation-overlay__icon" aria-hidden="true"></div>
+        <p class="portrait-orientation-overlay__title">Поверните устройство</p>
+        <p class="portrait-orientation-overlay__text">
+          Игра рассчитана на горизонтальный экран. Разверните телефон или нажмите кнопку ниже.
+        </p>
+        <button
+          type="button"
+          class="portrait-orientation-overlay__btn"
+          id="btn-portrait-fullscreen"
+        >
+          На весь экран
+        </button>
+      </div>
+    </div>
+
     <script type="importmap">
       {
         "imports": {
-          "phaser": "https://cdn.jsdelivr.net/npm/phaser@4.1.0/dist/phaser.esm.js"
+          "phaser": "./vendor/phaser/phaser.esm.js"
         }
       }
     </script>

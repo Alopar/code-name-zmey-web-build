@@ -22,6 +22,7 @@
     0 0 0 1px var(--zmey-border-dim),
     0 12px 48px rgba(0, 0, 0, 0.65);
   -webkit-tap-highlight-color: transparent;
+  --ui-scale: 1;
 }
 
 #app-viewport img,
@@ -35,14 +36,24 @@
   position: absolute;
   left: 0;
   top: 0;
-  width: 1920px;
-  height: 1080px;
   overflow: hidden;
+}
+
+#screen-view,
+#modal-root,
+#info-toast-root,
+#scene-load-overlay {
+  width: calc(1920px / var(--ui-scale));
+  height: calc(1080px / var(--ui-scale));
+  transform: scale(var(--ui-scale));
+  transform-origin: 0 0;
 }
 
 #world-view {
   z-index: 0;
   pointer-events: auto;
+  width: 1920px;
+  height: 1080px;
 }
 
 #world-view canvas {
@@ -95,8 +106,6 @@
   position: absolute;
   left: 0;
   top: 0;
-  width: 1920px;
-  height: 1080px;
   z-index: 8;
   pointer-events: none;
 }

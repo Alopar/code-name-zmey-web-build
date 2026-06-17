@@ -1,6 +1,7 @@
 import { GameEvents, on } from "../core/EventBus.js";
 import { GameSpace } from "../core/GameSpace.js";
 import * as CombatSession from "../combat/CombatSession.js";
+import { setCombatButtonState } from "./combatButtonState.js";
 
 /**
  * @param {HTMLElement | null} bar
@@ -17,19 +18,85 @@ function setHpBar(bar, fill, percent) {
   }
 }
 
-const STIMULATOR_ABILITY_ID = "stimulator";
+/**
+ * @param {{ current?: number, max?: number } | undefined} actionPoints
+ */
+function renderActionPoints(actionPoints) {
+  const block = document.getElementById("combat-player-ap");
+  const container = document.getElementById("combat-player-ap-points");
+
+  if (!block || !container) {
+    return;
+  }
+
+  if (!actionPoints || actionPoints.max == null || actionPoints.current == null) {
+    block.hidden = true;
+    return;
+  }
+
+  block.hidden = false;
+  const { current, max } = actionPoints;
+
+  while (container.children.length < max) {
+    const dot = document.createElement("span");
+    dot.className = "ui-ap-point";
+    container.appendChild(dot);
+  }
+
+  while (container.children.length > max) {
+    container.lastChild?.remove();
+  }
+
+  for (let index = 0; index < max; index += 1) {
+    const dot = container.children[index];
+    if (!(dot instanceof HTMLElement)) {
+      continue;
+    }
+
+    const isActive = index < current;
+    dot.classList.toggle("is-active", isActive);
+    dot.classList.toggle("is-spent", !isActive);
+    dot.setAttribute("aria-hidden", isActive ? "false" : "true");
+  }
+
+  block.setAttribute("aria-label", `Очки действия: ${current} из ${max}`);
+}
+
+/** @type {Readonly<Record<string, { button: HTMLElement | null, label: HTMLElement | null, countEl: HTMLElement | null }>>} */
+const COMBAT_ABILITY_UI = Object.freeze({
+  stimulator: {
+    button: document.getElementById("btn-combat-stimulator"),
+    label: document.getElementById("combat-stimulator-label"),
+    countEl: document.querySelector("#combat-stimulator-count strong"),
+  },
+  grenade: {
+    button: document.getElementById("btn-combat-grenade"),
+    label: document.getElementById("combat-grenade-label"),
+    countEl: document.querySelector("#combat-grenade-count strong"),
+  },
+});
 
 export function initCombatUI() {
   const attackBtn = document.getElementById("btn-attack");
   const waitBtn = document.getElementById("btn-wait");
-  const stimulatorBtn = document.getElementById("btn-combat-stimulator");
-  const stimulatorLabel = document.getElementById("combat-stimulator-label");
-  const stimulatorCountEl = document.querySelector("#combat-stimulator-count strong");
   const playerFill = document.getElementById("combat-player-hp-fill");
   const playerBar = document.getElementById("combat-player-hp-bar");
   const heroNameEl = document.getElementById("combat-hero-name");
 
-  const combatActionButtons = [attackBtn, waitBtn, stimulatorBtn];
+  const abilityButtons = Object.values(COMBAT_ABILITY_UI)
+    .map((ui) => ui.button)
+    .filter((btn) => btn instanceof HTMLElement);
+  const combatActionButtons = [attackBtn, waitBtn, ...abilityButtons];
+
+  function applyBusyLock(detail) {
+    const canAttackReady = detail?.canAttackReady ?? false;
+    setCombatButtonState(
+      attackBtn,
+      canAttackReady ? { busy: true } : { unavailable: true },
+    );
+    setCombatButtonState(waitBtn, { busy: true });
+    updateAbilityButtons(detail.abilities, { mode: "busy" });
+  }
 
   function resetCombatFooter() {
     for (const btn of combatActionButtons) {
@@ -38,70 +105,112 @@ export function initCombatUI() {
       }
       btn.hidden = false;
       btn.disabled = false;
-      btn.classList.remove("is-disabled");
+      btn.classList.remove("is-disabled", "is-busy");
     }
   }
 
   function lockPostCombatActions() {
     for (const btn of combatActionButtons) {
-      if (!btn) {
-        continue;
+      setCombatButtonState(btn, { unavailable: true });
+      if (btn) {
+        btn.hidden = false;
       }
-      btn.hidden = false;
-      btn.disabled = true;
-      btn.classList.add("is-disabled");
     }
   }
 
-  /** @param {boolean} disabled */
-  function setCombatActionsDisabled(disabled) {
-    for (const btn of [attackBtn, waitBtn, stimulatorBtn]) {
-      if (!btn || btn.hidden) {
-        continue;
-      }
-      btn.disabled = disabled;
-      btn.classList.toggle("is-disabled", disabled);
+  /**
+   * @param {boolean} canAttack
+   */
+  function updateCombatActionButtons(canAttack) {
+    setCombatButtonState(attackBtn, { unavailable: !canAttack });
+    setCombatButtonState(waitBtn, { unavailable: false });
+  }
+
+  function lockCombatActionsForTurn() {
+    for (const btn of combatActionButtons) {
+      setCombatButtonState(btn, { unavailable: true });
     }
+  }
+
+  /**
+   * @param {string} abilityId
+   * @param {{ id: string, name: string, resourceCount?: number, cooldownRemaining: number, canUse: boolean, canUseReady?: boolean }} ability
+   * @param {{ mode?: "busy" | "turn", unavailable?: boolean }} [lock]
+   */
+  function updateAbilityButton(abilityId, ability, lock = {}) {
+    const ui = COMBAT_ABILITY_UI[abilityId];
+    if (!ui?.button) {
+      return;
+    }
+
+    ui.button.hidden = false;
+
+    const onCooldown = ability.cooldownRemaining > 0;
+    const label = onCooldown
+      ? `${ability.name} (${ability.cooldownRemaining})`
+      : ability.name;
+
+    if (ui.label) {
+      ui.label.textContent = label;
+    }
+
+    if (ui.countEl) {
+      ui.countEl.textContent = String(ability.resourceCount ?? 0);
+    }
+
+    ui.button.classList.toggle("is-on-cooldown", onCooldown);
+
+    if (lock.mode === "busy") {
+      const canUseReady = ability.canUseReady ?? false;
+      setCombatButtonState(
+        ui.button,
+        canUseReady ? { busy: true } : { unavailable: true },
+      );
+      return;
+    }
+
+    setCombatButtonState(ui.button, {
+      unavailable: lock.unavailable || lock.mode === "turn" || !ability.canUse,
+    });
   }
 
   /**
    * @param {Array<{ id: string, name: string, resourceCount?: number, cooldownRemaining: number, canUse: boolean }>} [abilities]
-   * @param {boolean} [actionsLocked]
+   * @param {{ mode?: "busy" | "turn", unavailable?: boolean }} [lock]
    */
-  function updateAbilityButtons(abilities, actionsLocked = false) {
-    if (!stimulatorBtn || stimulatorBtn.hidden || !abilities?.length) {
+  function updateAbilityButtons(abilities, lock = {}) {
+    if (!abilities?.length) {
       return;
     }
 
-    const stimulator = abilities.find((ability) => ability.id === STIMULATOR_ABILITY_ID);
-    if (!stimulator) {
-      stimulatorBtn.hidden = true;
-      return;
+    const abilityIds = new Set(abilities.map((ability) => ability.id));
+
+    for (const [abilityId, ui] of Object.entries(COMBAT_ABILITY_UI)) {
+      if (!ui.button) {
+        continue;
+      }
+
+      if (!abilityIds.has(abilityId)) {
+        ui.button.hidden = true;
+      }
     }
 
-    stimulatorBtn.hidden = false;
-
-    const onCooldown = stimulator.cooldownRemaining > 0;
-    const label = onCooldown
-      ? `${stimulator.name} (${stimulator.cooldownRemaining})`
-      : stimulator.name;
-
-    if (stimulatorLabel) {
-      stimulatorLabel.textContent = label;
+    for (const ability of abilities) {
+      updateAbilityButton(ability.id, ability, lock);
     }
-
-    if (stimulatorCountEl) {
-      stimulatorCountEl.textContent = String(stimulator.resourceCount ?? 0);
-    }
-
-    const disabled = actionsLocked || !stimulator.canUse;
-    stimulatorBtn.disabled = disabled;
-    stimulatorBtn.classList.toggle("is-disabled", disabled);
-    stimulatorBtn.classList.toggle("is-on-cooldown", onCooldown);
   }
 
   /**
-   * @param {{ phase?: string, canAct?: boolean, player?: { name?: string, hpPercent: number }, abilities?: Array<{ id: string, name: string, resourceCount?: number, cooldownRemaining: number, canUse: boolean }> }} detail
+   * @param {{
+   *   phase?: string,
+   *   canAct?: boolean,
+   *   canAttack?: boolean,
+   *   canAttackReady?: boolean,
+   *   actionsLock?: "none" | "busy" | "turn",
+   *   actionPoints?: { current: number, max: number },
+   *   player?: { name?: string, hpPercent: number },
+   *   abilities?: Array<{ id: string, name: string, resourceCount?: number, cooldownRemaining: number, canUse: boolean }>
+   * }} detail
    */
   function applyCombatState(detail) {
     if (detail?.player) {
@@ -111,22 +220,36 @@ export function initCombatUI() {
       setHpBar(playerBar, playerFill, detail.player.hpPercent);
     }
 
+    renderActionPoints(detail?.actionPoints);
+
     if (detail?.phase === "ended") {
       lockPostCombatActions();
-      updateAbilityButtons(detail.abilities, true);
+      updateAbilityButtons(detail.abilities, { mode: "turn" });
       return;
     }
 
-    const actionsLocked = !detail?.canAct;
-    setCombatActionsDisabled(actionsLocked);
-    updateAbilityButtons(detail.abilities, actionsLocked);
+    const actionsLock = detail?.actionsLock ?? (detail?.canAct ? "none" : "turn");
+
+    if (actionsLock === "busy") {
+      applyBusyLock(detail);
+      return;
+    }
+
+    if (actionsLock === "turn") {
+      lockCombatActionsForTurn();
+      updateAbilityButtons(detail.abilities, { mode: "turn" });
+      return;
+    }
+
+    updateCombatActionButtons(detail?.canAttack ?? false);
+    updateAbilityButtons(detail.abilities);
   }
 
   on(GameEvents.COMBAT_STARTED, (detail) => {
     resetCombatFooter();
     const player = detail?.encounter?.player;
     if (player) {
-      applyCombatState({ player, canAct: false });
+      applyCombatState({ player, canAct: false, actionsLock: "turn" });
     }
   });
 
@@ -155,8 +278,10 @@ export function initCombatUI() {
     CombatSession.getEngine()?.requestPlayerWait();
   });
 
-  stimulatorBtn?.addEventListener("click", (event) => {
-    event.stopPropagation();
-    CombatSession.getEngine()?.requestPlayerAbility(STIMULATOR_ABILITY_ID);
-  });
+  for (const [abilityId, ui] of Object.entries(COMBAT_ABILITY_UI)) {
+    ui.button?.addEventListener("click", (event) => {
+      event.stopPropagation();
+      CombatSession.getEngine()?.requestPlayerAbility(abilityId);
+    });
+  }
 }

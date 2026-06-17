@@ -1,9 +1,11 @@
+import { executeGrenade } from "./executeGrenade.js";
 import { executeStimulator } from "./executeStimulator.js";
 
 export { getCombatAbilityConfig } from "./config/combatAbilities.js";
 
 export const COMBAT_ABILITY_EXECUTORS = Object.freeze({
   stimulator: executeStimulator,
+  grenade: executeGrenade,
 });
 
 /**

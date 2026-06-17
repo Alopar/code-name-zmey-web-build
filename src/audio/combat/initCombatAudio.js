@@ -20,12 +20,12 @@ export function initCombatAudio() {
       return;
     }
 
-    if (detail?.type === "enemy_hit") {
+    if (detail?.type === "enemies_hit" || detail?.type === "enemy_hit") {
       manager.playSfx(AudioKey.COMBAT_PLAYER_HIT);
       return;
     }
 
-    if (detail?.type === "enemy_death") {
+    if (detail?.type === "enemies_death" || detail?.type === "enemy_death") {
       manager.playSfx(AudioKey.COMBAT_ENEMY_DEATH);
     }
   });

@@ -13,11 +13,11 @@ import { GlobalScreenFeedback } from "../feedback/global/GlobalScreenFeedback.js
 import { runGlobalScreenFeedback } from "../feedback/global/runGlobalScreenFeedback.js";
 import { runEnemyFeedback } from "../feedback/runEnemyFeedback.js";
 import { registerBloodBurnDissolveFilter } from "../feedback/filters/bloodBurnDissolveFilter.js";
+import { getEnemySpawnPositions } from "../../combat/config/combatSpawnGuides.js";
+import { spawnCombatChestPresentation } from "../chestCombatPresentation.js";
 import {
   getEnemySpriteDisplayWidth,
-  layoutEnemyPositions,
 } from "../combatEnemyLayout.js";
-import { spawnCombatChestPresentation } from "../chestCombatPresentation.js";
 import {
   createBreathOptionsForIndex,
   spawnCombatEnemyPresentation,
@@ -26,6 +26,7 @@ import { spawnCombatLootPresentation } from "../lootCombatPresentation.js";
 import { syncCombatSceneWorldDepths } from "../combatWorldDepth.js";
 import { BaseSpaceScene } from "../BaseSpaceScene.js";
 import { addWorldBackground } from "../worldBackground.js";
+import { isGamePointerButton } from "../../debug/isGamePointerButton.js";
 
 /**
  * @param {Phaser.Scene} scene
@@ -38,6 +39,34 @@ function runEnemyFeedbackAsync(scene, view, effectNames, effectOptions = {}) {
   return new Promise((resolve) => {
     runEnemyFeedback(scene, view, effectNames, resolve, effectOptions);
   });
+}
+
+/**
+ * @param {object} detail
+ * @returns {object[]}
+ */
+function normalizeEnemyHitTargets(detail) {
+  if (detail?.type === "enemies_hit") {
+    return Array.isArray(detail.targets) ? detail.targets : [];
+  }
+  if (detail?.type === "enemy_hit") {
+    return [detail];
+  }
+  return [];
+}
+
+/**
+ * @param {object} detail
+ * @returns {object[]}
+ */
+function normalizeEnemyDeathTargets(detail) {
+  if (detail?.type === "enemies_death") {
+    return Array.isArray(detail.targets) ? detail.targets : [];
+  }
+  if (detail?.type === "enemy_death") {
+    return [detail];
+  }
+  return [];
 }
 
 /** Высота врага на тропе (доля viewport). */
@@ -54,6 +83,8 @@ export class CombatScene extends BaseSpaceScene {
     this.chestViews = new Map();
     /** @type {GlobalScreenFeedback | null} */
     this.screenFeedback = null;
+    /** @type {string} */
+    this.combatLocationId = "jungle_road";
     /** @type {(() => void) | null} */
     this._unsubCombatEvents = null;
   }
@@ -74,6 +105,7 @@ export class CombatScene extends BaseSpaceScene {
     this.bindCombatEvents();
 
     const encounter = CombatSession.consume();
+    this.combatLocationId = encounter.location.id;
     addWorldBackground(this, encounter.location.bgKey);
 
     this.spawnEnemies(encounter.enemies);
@@ -90,7 +122,11 @@ export class CombatScene extends BaseSpaceScene {
       return Math.max(maxWidth, width);
     }, 0);
 
-    const positions = layoutEnemyPositions(enemies.length, spriteDisplayWidth);
+    const positions = getEnemySpawnPositions(
+      this.combatLocationId,
+      enemies.length,
+      spriteDisplayWidth,
+    );
 
     enemies.forEach((enemy, index) => {
       const pos = positions[index];
@@ -111,7 +147,10 @@ export class CombatScene extends BaseSpaceScene {
         return;
       }
 
-      view.sprite.on("pointerdown", () => {
+      view.sprite.on("pointerdown", (pointer) => {
+        if (!isGamePointerButton(pointer)) {
+          return;
+        }
         CombatSession.getEngine()?.selectTarget(view.combatantId);
       });
 
@@ -162,7 +201,10 @@ export class CombatScene extends BaseSpaceScene {
       return;
     }
 
-    view.sprite.on("pointerdown", () => {
+    view.sprite.on("pointerdown", (pointer) => {
+      if (!isGamePointerButton(pointer)) {
+        return;
+      }
       this.handleLootPickup(view.dropId);
     });
 
@@ -219,7 +261,10 @@ export class CombatScene extends BaseSpaceScene {
       return;
     }
 
-    view.sprite.on("pointerdown", () => {
+    view.sprite.on("pointerdown", (pointer) => {
+      if (!isGamePointerButton(pointer)) {
+        return;
+      }
       this.handleChestTap(view.chestId);
     });
 
@@ -309,63 +354,33 @@ export class CombatScene extends BaseSpaceScene {
         return;
       }
 
-      if (feedbackType !== "enemy_hit" && feedbackType !== "enemy_death") {
-        notifyFeedbackComplete();
-        return;
-      }
+      if (feedbackType === "enemy_hit" || feedbackType === "enemies_hit") {
+        const targets = normalizeEnemyHitTargets(detail);
+        if (!targets.length) {
+          notifyFeedbackComplete();
+          return;
+        }
 
-      const combatantId = detail.combatantId;
-      const view = combatantId ? this.getEnemyView(combatantId) : undefined;
-      if (!view) {
-        notifyFeedbackComplete();
-        return;
-      }
-
-      const effects = Array.isArray(detail.effects) ? detail.effects : [];
-      const effectOptions =
-        detail.effectOptions && typeof detail.effectOptions === "object"
-          ? detail.effectOptions
-          : {};
-
-      view.pauseBreathing();
-
-      if (feedbackType === "enemy_hit") {
-        const hitEffects =
-          effects.length > 0 ? effects : ["redBlink", "shake", "bloodSplash"];
-        const hpPercent = typeof detail.hpPercent === "number" ? detail.hpPercent : 0;
-        const previousHpPercent =
-          typeof detail.previousHpPercent === "number"
-            ? detail.previousHpPercent
-            : hpPercent;
-
-        void Promise.all([
-          runEnemyFeedbackAsync(this, view, hitEffects, effectOptions),
-          view.animateHpToPercent(hpPercent, previousHpPercent),
-        ]).then(() => {
+        void Promise.all(targets.map((target) => this.#runEnemyHitFeedback(target))).then(() => {
           notifyFeedbackComplete();
         });
         return;
       }
 
-      const deathEffects =
-        effects.length > 0
-          ? effects
-          : ["bloodBurnDissolve", "shadowShrink", "bloodBurstLoop"];
-
-      view.hideHpBar();
-
-      runEnemyFeedback(this, view, deathEffects, () => {
-        const { x, y } = view.pivot;
-        const engine = CombatSession.getEngine();
-        const drop = engine?.trySpawnLootFromEnemy(detail.enemyId, { x, y });
-
-        if (drop) {
-          this.spawnLootView(drop);
+      if (feedbackType === "enemy_death" || feedbackType === "enemies_death") {
+        const targets = normalizeEnemyDeathTargets(detail);
+        if (!targets.length) {
+          notifyFeedbackComplete();
+          return;
         }
 
-        this.removeEnemyView(combatantId);
-        notifyFeedbackComplete();
-      }, effectOptions);
+        void Promise.all(targets.map((target) => this.#runEnemyDeathFeedback(target))).then(() => {
+          notifyFeedbackComplete();
+        });
+        return;
+      }
+
+      notifyFeedbackComplete();
     });
 
     this._unsubScreenFeedback = on(GameEvents.COMBAT_SCREEN_FEEDBACK_REQUEST, (detail) => {
@@ -430,6 +445,77 @@ export class CombatScene extends BaseSpaceScene {
           view.syncHpPercent(snapshot.hpPercent);
         }
       }
+    });
+  }
+
+  /**
+   * @param {{ combatantId?: string, damage?: number, previousHpPercent?: number, hpPercent?: number, effects?: string[], effectOptions?: Record<string, object> }} target
+   * @returns {Promise<void>}
+   */
+  #runEnemyHitFeedback(target) {
+    const combatantId = target.combatantId;
+    const view = combatantId ? this.getEnemyView(combatantId) : undefined;
+    if (!view) {
+      return Promise.resolve();
+    }
+
+    const effects = Array.isArray(target.effects) ? target.effects : [];
+    const effectOptions =
+      target.effectOptions && typeof target.effectOptions === "object"
+        ? target.effectOptions
+        : {};
+    const hitEffects =
+      effects.length > 0 ? effects : ["redBlink", "shake", "bloodSplash"];
+    const hpPercent = typeof target.hpPercent === "number" ? target.hpPercent : 0;
+    const previousHpPercent =
+      typeof target.previousHpPercent === "number"
+        ? target.previousHpPercent
+        : hpPercent;
+
+    view.pauseBreathing();
+
+    return Promise.all([
+      runEnemyFeedbackAsync(this, view, hitEffects, effectOptions),
+      view.animateHpToPercent(hpPercent, previousHpPercent),
+    ]).then(() => {});
+  }
+
+  /**
+   * @param {{ combatantId?: string, enemyId?: string, effects?: string[], effectOptions?: Record<string, object> }} target
+   * @returns {Promise<void>}
+   */
+  #runEnemyDeathFeedback(target) {
+    const combatantId = target.combatantId;
+    const view = combatantId ? this.getEnemyView(combatantId) : undefined;
+    if (!view) {
+      return Promise.resolve();
+    }
+
+    const effects = Array.isArray(target.effects) ? target.effects : [];
+    const effectOptions =
+      target.effectOptions && typeof target.effectOptions === "object"
+        ? target.effectOptions
+        : {};
+    const deathEffects =
+      effects.length > 0
+        ? effects
+        : ["bloodBurnDissolve", "shadowShrink", "bloodBurstLoop"];
+
+    view.hideHpBar();
+
+    return new Promise((resolve) => {
+      runEnemyFeedback(this, view, deathEffects, () => {
+        const { x, y } = view.pivot;
+        const engine = CombatSession.getEngine();
+        const drop = engine?.trySpawnLootFromEnemy(target.enemyId, { x, y });
+
+        if (drop) {
+          this.spawnLootView(drop);
+        }
+
+        this.removeEnemyView(combatantId);
+        resolve();
+      }, effectOptions);
     });
   }
 

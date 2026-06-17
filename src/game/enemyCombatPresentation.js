@@ -1,6 +1,8 @@
 import { createCombatWorldRig } from "./combatWorldPivot.js";
 import { createEnemyWorldHpBar } from "./enemyWorldHpBar.js";
 import { createSoftShadowImage } from "./softShadow.js";
+import { attachCombatShadow, resolveShadowLayer } from "./attachCombatShadow.js";
+import { shadowFrameOffsetToView, spriteFrameOffsetToView } from "./visualFrameOffset.js";
 
 /** «Вдох» по Y (половина прежней амплитуды). */
 const BREATH_SCALE_Y = 1.014;
@@ -17,13 +19,26 @@ const DEFAULT_SHADOW = Object.freeze({
 /**
  * @param {import("../combat/entities/Enemy.js").Enemy["visual"]} visual
  */
+function resolveSpriteOptions(visual) {
+  const sprite = visual.sprite ?? {};
+  return {
+    offsetX: sprite.offsetX ?? 0,
+    offsetY: sprite.offsetY ?? 0,
+  };
+}
+
+/**
+ * @param {import("../combat/entities/Enemy.js").Enemy["visual"]} visual
+ */
 function resolveShadowOptions(visual) {
   const shadow = visual.shadow ?? {};
   return {
+    offsetX: shadow.offsetX ?? 0,
     offsetY: shadow.offsetY ?? DEFAULT_SHADOW.offsetY,
     widthScale: shadow.widthScale ?? DEFAULT_SHADOW.widthScale,
     heightScale: shadow.heightScale ?? DEFAULT_SHADOW.heightScale,
     alpha: shadow.alpha ?? DEFAULT_SHADOW.alpha,
+    layer: resolveShadowLayer(shadow),
   };
 }
 
@@ -65,6 +80,7 @@ export function spawnCombatEnemyPresentation(
   presentationOpts = {},
 ) {
   const { assetKey, idle } = enemy.visual;
+  const spriteOpts = resolveSpriteOptions(enemy.visual);
   const shadowOpts = resolveShadowOptions(enemy.visual);
 
   if (!scene.textures.exists(assetKey)) {
@@ -86,16 +102,28 @@ export function spawnCombatEnemyPresentation(
   sprite.setScale(baseScale);
   sprite.setFlipX(flipX);
 
+  const spriteViewPos = spriteFrameOffsetToView(
+    spriteOpts.offsetX,
+    spriteOpts.offsetY,
+    baseScale,
+  );
+  sprite.setPosition(spriteViewPos.x, spriteViewPos.y);
+
   const shadowW = sprite.displayWidth * shadowOpts.widthScale;
   const shadowH = shadowW * shadowOpts.heightScale;
   const shadow = createSoftShadowImage(scene, shadowW, shadowH, shadowOpts.alpha);
-  shadow.setPosition(0, -shadowOpts.offsetY * baseScale);
+  const shadowViewPos = shadowFrameOffsetToView(
+    shadowOpts.offsetX,
+    shadowOpts.offsetY,
+    baseScale,
+  );
+  shadow.setPosition(shadowViewPos.x, shadowViewPos.y);
 
   const barWidth = sprite.displayWidth * 0.65;
   const hpBar = createEnemyWorldHpBar(scene, barWidth, -displayHeight);
   hpBar.setPercent(enemy.getHpPercent());
 
-  pivot.add(shadow);
+  attachCombatShadow(pivot, view, shadow, shadowOpts.layer);
   view.add([sprite, hpBar.container]);
 
   const breathTween = scene.tweens.add({
@@ -115,6 +143,7 @@ export function spawnCombatEnemyPresentation(
 
   return {
     combatantId: enemy.id,
+    enemyId: enemy.enemyId,
     pivot,
     view,
     /** @deprecated alias pivot — для depth-сортировки и координат спавна лута */

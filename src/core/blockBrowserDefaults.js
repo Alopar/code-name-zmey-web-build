@@ -1,6 +1,9 @@
 /** Браузерные действия, не относящиеся к игровому вводу. */
 const BLOCKED_DOCUMENT_EVENTS = ["dragstart", "selectstart", "copy", "cut", "paste"];
 
+/** Слои обёртки вне #app-viewport, которым разрешён pointer-ввод. */
+const WRAPPER_LAYER_SELECTORS = ["#app-load-curtain", "#portrait-orientation-overlay"];
+
 /** Pointer/mouse вне #app-viewport (letterbox, curtain, фон страницы). */
 const BLOCKED_OUTSIDE_GAME_EVENTS = [
   "pointerdown",
@@ -26,8 +29,17 @@ function isGameViewportTarget(target) {
   return Boolean(viewport?.contains(target));
 }
 
+/** @param {EventTarget | null} target */
+function isAllowedOutsideViewportTarget(target) {
+  if (!(target instanceof Element)) {
+    return false;
+  }
+
+  return WRAPPER_LAYER_SELECTORS.some((selector) => target.closest(selector));
+}
+
 function blockOutsideGamePointer(event) {
-  if (isGameViewportTarget(event.target)) {
+  if (isGameViewportTarget(event.target) || isAllowedOutsideViewportTarget(event.target)) {
     return;
   }
 

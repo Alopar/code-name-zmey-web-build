@@ -1,9 +1,9 @@
 import { loadDebugSettings } from "./DebugSettings.js";
-import { PivotOverlayController } from "./overlay/PivotOverlayController.js";
+import { CombatDebugController } from "./overlay/CombatDebugController.js";
 import { initDebugLobbyCheckbox } from "./ui/initDebugLobbyCheckbox.js";
 
-/** @type {PivotOverlayController | null} */
-let pivotOverlay = null;
+/** @type {CombatDebugController | null} */
+let combatDebug = null;
 
 /**
  * @param {Phaser.Game} game
@@ -13,12 +13,12 @@ export function initDebugSystem(game) {
   loadDebugSettings();
   const unsubCheckbox = initDebugLobbyCheckbox();
 
-  pivotOverlay = new PivotOverlayController(game);
-  pivotOverlay.start();
+  combatDebug = new CombatDebugController(game);
+  combatDebug.start();
 
   return () => {
     unsubCheckbox();
-    pivotOverlay?.destroy();
-    pivotOverlay = null;
+    combatDebug?.destroy();
+    combatDebug = null;
   };
 }

@@ -28,6 +28,7 @@ export function buildMapWorld(scene, graph) {
 
   for (const node of graph.nodes.values()) {
     const view = createMapNodeView(scene, node, graph.getNodeState(node.id), handleNodeSelect);
+    view.setSelectable(graph.canSelect(node.id));
     nodeViews.set(node.id, view);
   }
 
@@ -44,7 +45,7 @@ export function buildMapWorld(scene, graph) {
     for (const [nodeId, view] of nodeViews) {
       const state = graph.getNodeState(nodeId);
       view.setState(state);
-      view.setInteractive(true);
+      view.setSelectable(graph.canSelect(nodeId));
     }
 
     const node = graph.getNode(graph.currentNodeId);

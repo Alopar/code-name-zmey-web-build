@@ -1,7 +1,6 @@
-import { AssetKey } from "../Assets.js";
 import { GameSpace, SceneKey } from "../../core/GameSpace.js";
 import { BaseSpaceScene } from "../BaseSpaceScene.js";
-import { addWorldBackground } from "../worldBackground.js";
+import { setupLobbyWorld } from "../lobby/lobbyPresentation.js";
 
 export class LobbyScene extends BaseSpaceScene {
   constructor() {
@@ -9,6 +8,6 @@ export class LobbyScene extends BaseSpaceScene {
   }
 
   buildWorld() {
-    addWorldBackground(this, AssetKey.LOBBY_BG);
+    setupLobbyWorld(this);
   }
 }

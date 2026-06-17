@@ -48,10 +48,20 @@ export function initMapController() {
         return;
       }
 
+      const traversing = graph.isTraversal(nodeId);
+
       transitioning = true;
 
       try {
         await world.movePlayerTo(nodeId);
+
+        if (traversing) {
+          graph.moveToNode(nodeId);
+          world.refresh();
+          emit(GameEvents.MAP_STATE_CHANGED, { graph: graph.snapshot() });
+          return;
+        }
+
         const node = graph.getNode(nodeId);
         if (node.type === "start") {
           return;

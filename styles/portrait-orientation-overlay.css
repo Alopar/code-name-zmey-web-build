@@ -1,0 +1,84 @@
+.portrait-orientation-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 100001;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding:
+    max(1rem, env(safe-area-inset-top))
+    max(1rem, env(safe-area-inset-right))
+    max(1rem, env(safe-area-inset-bottom))
+    max(1rem, env(safe-area-inset-left));
+  background: radial-gradient(
+    ellipse at 50% 30%,
+    var(--zmey-olive-deep) 0%,
+    var(--zmey-void) 55%,
+    var(--zmey-void-deep) 100%
+  );
+  pointer-events: auto;
+}
+
+.portrait-orientation-overlay[hidden] {
+  display: none;
+}
+
+.portrait-orientation-overlay__inner {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 1rem;
+  width: min(100%, 22rem);
+  padding: 1.5rem 1.75rem;
+  text-align: center;
+  background: var(--zmey-rail-bg);
+  border: 1px solid var(--zmey-rail-border);
+  backdrop-filter: var(--zmey-rail-blur);
+  -webkit-backdrop-filter: var(--zmey-rail-blur);
+}
+
+.portrait-orientation-overlay__icon {
+  width: 3.5rem;
+  height: 3.5rem;
+  border: 2px solid var(--zmey-khaki-dim);
+  border-radius: 0.5rem;
+  transform: rotate(90deg);
+  opacity: 0.85;
+}
+
+.portrait-orientation-overlay__title {
+  font-family: var(--font-display);
+  font-size: var(--text-md);
+  letter-spacing: var(--tracking-stencil);
+  text-transform: uppercase;
+  color: var(--zmey-text);
+}
+
+.portrait-orientation-overlay__text {
+  font-family: var(--font-ui);
+  font-size: var(--text-sm);
+  line-height: 1.45;
+  color: var(--zmey-khaki-dim);
+}
+
+.portrait-orientation-overlay__btn {
+  margin-top: 0.5rem;
+  min-width: 12rem;
+  min-height: 2.75rem;
+  padding: 0.65rem 1.25rem;
+  font-family: var(--font-display);
+  font-size: var(--text-sm);
+  letter-spacing: var(--tracking-stencil);
+  text-transform: uppercase;
+  color: var(--zmey-text);
+  background: rgba(10, 14, 8, 0.55);
+  border: 1px solid var(--zmey-rail-border);
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.portrait-orientation-overlay__btn:focus-visible {
+  outline: 2px solid var(--zmey-khaki);
+  outline-offset: 3px;
+}

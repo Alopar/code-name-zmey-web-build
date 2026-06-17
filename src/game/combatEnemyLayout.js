@@ -35,9 +35,10 @@ export function getEnemySpriteDisplayWidth(scene, enemy, displayHeight) {
  * Позиции врагов: по X — ровная сетка с шагом = ширина спрайта, по Y — лёгкий разброс.
  * @param {number} count
  * @param {number} spriteDisplayWidth — дистанция между центрами соседних врагов
+ * @param {number} [baseY]
  * @returns {{ x: number, y: number }[]}
  */
-export function layoutEnemyPositions(count, spriteDisplayWidth) {
+export function layoutEnemyPositions(count, spriteDisplayWidth, baseY = COMBAT_BASE_Y) {
   if (count <= 0) {
     return [];
   }

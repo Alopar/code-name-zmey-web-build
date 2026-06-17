@@ -16,12 +16,18 @@ import { grantLootDrops } from "../loot/grantLootDrops.js";
 import { getLootContainerConfig } from "../loot/config/lootContainers.js";
 import { rollCombatLoot } from "../loot/rollCombatLoot.js";
 import { rollSingleLootDrop } from "../loot/rollSingleLootDrop.js";
-import { COMBAT_BASE_Y, COMBAT_CENTER_X } from "../game/combatEnemyLayout.js";
+import { getChestSpawnPosition } from "../combat/config/combatSpawnGuides.js";
 import { layoutLootBelowChest } from "../game/combatChestLootLayout.js";
 import { INFO_TOAST_TYPES } from "../ui/infoToast/config/infoToastTypes.js";
 import { delay } from "./delay.js";
 import { CombatSequencer } from "./CombatSequencer.js";
-import { calcWeaponDamage } from "../weapon/calcDamage.js";
+import { calcWeaponDamage, rollDamageInRange } from "../weapon/calcDamage.js";
+import {
+  COMBAT_ACTION_IDS,
+  CombatActionPoints,
+  DEFAULT_ACTION_COST,
+  PLAYER_ACTION_POINTS_MAX,
+} from "./actions/CombatActionPoints.js";
 
 /** @typedef {"player" | "resolving" | "ended"} CombatPhase */
 
@@ -45,6 +51,7 @@ export class CombatEngine {
     this.abilityCooldowns = new Map(
       this.combatAbilityIds.map((id) => [id, 0]),
     );
+    this.actionPoints = new CombatActionPoints({ max: PLAYER_ACTION_POINTS_MAX });
   }
 
   /** @type {CombatLootDrop[]} */
@@ -53,7 +60,11 @@ export class CombatEngine {
   /** @type {CombatChest[]} */
   #chests = [];
 
+  /** Пока true — идёт секвенция действия игрока, UI блокирует кнопки без затемнения. */
+  #isResolvingPlayerAction = false;
+
   start() {
+    this.actionPoints.resetTurn();
     emit(GameEvents.COMBAT_STARTED, { encounter: this.#encounterSnapshot() });
     this.#broadcastState();
   }
@@ -211,56 +222,44 @@ export class CombatEngine {
       return;
     }
 
+    if (!this.actionPoints.canUse(COMBAT_ACTION_IDS.attack, DEFAULT_ACTION_COST)) {
+      return;
+    }
+
     const target = this.#resolveAttackTarget();
     if (!target) {
       return;
     }
 
+    if (!this.actionPoints.spend(COMBAT_ACTION_IDS.attack, DEFAULT_ACTION_COST)) {
+      return;
+    }
+
     const { player } = this.encounter;
     const damage = calcWeaponDamage(player.weaponId);
-    const enemyConfig = getEnemyConfig(target.enemyId);
-    const visual = enemyConfig.visual ?? {};
-    const onHitEffects = visual.feedback?.onHit ?? ["redBlink", "shake", "bloodSplash"];
-    const onHitEffectOptions = {
-      ...(visual.feedback?.effectOptions ?? {}),
-      bloodSplash: getBloodSplashEffectOptions(enemyConfig),
-      floatingText: getFloatingTextEffectOptions(enemyConfig, damage),
-    };
 
-    this.phase = "resolving";
+    this.#beginPlayerActionResolution();
     this.#broadcastState();
 
-    const previousHpPercent = target.getHpPercent();
+    /** @type {ReturnType<CombatEngine["#applyDamageAndBuildHitPayload"]>[]} */
+    let hitTargets = [];
 
     this.sequencer.enqueue([
       {
         run: () => {
-          target.takeDamage(damage);
+          hitTargets = [this.#applyDamageAndBuildHitPayload(target, damage)];
         },
       },
-      {
-        async: true,
-        run: (_ctx, done) => {
-          emit(GameEvents.COMBAT_FEEDBACK_REQUEST, {
-            type: "enemy_hit",
-            combatantId: target.id,
-            enemyId: target.enemyId,
-            damage,
-            previousHpPercent,
-            hpPercent: target.getHpPercent(),
-            effects: onHitEffects,
-            effectOptions: onHitEffectOptions,
-          });
-          setFeedbackCompleteHandler(() => done());
-        },
-      },
+      this.#buildEnemiesHitFeedbackStep(() => hitTargets),
       {
         run: () => {
           this.#sanitizeSelectedTarget();
           this.#broadcastState();
         },
       },
-      ...this.#buildEnemyDeathSteps(target, enemyConfig),
+      this.#buildEnemiesDeathFeedbackStep(() =>
+        target.hp <= 0 ? [this.#buildEnemyDeathTarget(target)] : [],
+      ),
       {
         run: () => {
           if (this.#areAllEnemiesDead()) {
@@ -269,8 +268,7 @@ export class CombatEngine {
           }
         },
       },
-      ...this.#buildAllEnemyTurnSteps(ENEMY_RECOVERY_MS),
-      this.#buildReturnToPlayerStep(),
+      ...this.#buildPostPlayerActionSteps(ENEMY_RECOVERY_MS),
     ]);
 
     void this.sequencer.run(this);
@@ -285,7 +283,7 @@ export class CombatEngine {
       return;
     }
 
-    this.phase = "resolving";
+    this.#beginPlayerActionResolution();
     this.#broadcastState();
 
     this.sequencer.enqueue([
@@ -305,7 +303,7 @@ export class CombatEngine {
       return false;
     }
 
-    this.phase = "resolving";
+    this.#beginPlayerActionResolution();
     this.#broadcastState();
     return true;
   }
@@ -330,24 +328,36 @@ export class CombatEngine {
       return;
     }
 
+    const actionId = COMBAT_ACTION_IDS.ability(abilityId);
+    if (!this.actionPoints.canUse(actionId, DEFAULT_ACTION_COST)) {
+      return;
+    }
+
     const { player } = this.encounter;
     const result = executeCombatAbility(abilityId, player);
     if (!result.success) {
       return;
     }
 
-    const abilityConfig = getCombatAbilityConfig(abilityId);
-    const healAmount = result.healAmount ?? 0;
+    if (!this.actionPoints.spend(actionId, DEFAULT_ACTION_COST)) {
+      return;
+    }
 
-    this.phase = "resolving";
+    const abilityConfig = getCombatAbilityConfig(abilityId);
+    this.abilityCooldowns.set(abilityId, abilityConfig.cooldownTurns);
+
+    this.#beginPlayerActionResolution();
     this.#broadcastState();
 
+    if (abilityConfig.kind === "aoe_damage") {
+      this.#enqueueAoeDamageAbilitySteps(abilityId, abilityConfig);
+      void this.sequencer.run(this);
+      return;
+    }
+
+    const healAmount = result.healAmount ?? 0;
+
     this.sequencer.enqueue([
-      {
-        run: () => {
-          this.abilityCooldowns.set(abilityId, abilityConfig.cooldownTurns);
-        },
-      },
       {
         async: true,
         run: (_ctx, done) => {
@@ -363,8 +373,7 @@ export class CombatEngine {
           this.#broadcastState();
         },
       },
-      ...this.#buildAllEnemyTurnSteps(0),
-      this.#buildReturnToPlayerStep(),
+      ...this.#buildPostPlayerActionSteps(0),
     ]);
 
     void this.sequencer.run(this);
@@ -395,10 +404,13 @@ export class CombatEngine {
       return;
     }
 
+    const locationId = this.encounter.location?.id ?? "jungle_road";
+    const pos = getChestSpawnPosition(locationId);
+
     this.spawnVictoryChest({
       containerId: chestId,
-      x: COMBAT_CENTER_X,
-      y: COMBAT_BASE_Y,
+      x: pos.x,
+      y: pos.y,
     });
   }
 
@@ -442,33 +454,165 @@ export class CombatEngine {
   }
 
   /**
-   * @param {import("./entities/Enemy.js").Enemy} enemy
-   * @param {object} enemyConfig
+   * @param {string} abilityId
+   * @param {object} abilityConfig
    */
-  #buildEnemyDeathSteps(enemy, enemyConfig) {
-    const onDeathEffects = getOnDeathEffects(enemyConfig);
-    const onDeathEffectOptions = getOnDeathEffectOptions(enemyConfig);
+  #enqueueAoeDamageAbilitySteps(abilityId, abilityConfig) {
+    /** @type {ReturnType<CombatEngine["#buildEnemyHitPayload"]>[]} */
+    let hitPayloads = [];
+    /** @type {import("./entities/Enemy.js").Enemy[]} */
+    let killedEnemies = [];
 
-    return [
+    this.sequencer.enqueue([
       {
-        async: true,
-        run: (_ctx, done) => {
-          if (enemy.hp > 0) {
-            done();
-            return;
-          }
+        run: () => {
+          const alive = this.#getAliveEnemies();
+          hitPayloads = [];
+          killedEnemies = [];
 
-          emit(GameEvents.COMBAT_FEEDBACK_REQUEST, {
-            type: "enemy_death",
-            combatantId: enemy.id,
-            enemyId: enemy.enemyId,
-            effects: onDeathEffects,
-            effectOptions: onDeathEffectOptions,
-          });
-          setFeedbackCompleteHandler(() => done());
+          for (const enemy of alive) {
+            const damage = rollDamageInRange(abilityConfig.damageMin, abilityConfig.damageMax);
+            hitPayloads.push(this.#applyDamageAndBuildHitPayload(enemy, damage));
+            if (enemy.hp <= 0) {
+              killedEnemies.push(enemy);
+            }
+          }
         },
       },
-    ];
+      this.#buildEnemiesHitFeedbackStep(() => hitPayloads),
+      {
+        run: () => {
+          this.#sanitizeSelectedTarget();
+          this.#broadcastState();
+        },
+      },
+      this.#buildEnemiesDeathFeedbackStep(() =>
+        killedEnemies.map((enemy) => this.#buildEnemyDeathTarget(enemy)),
+      ),
+      {
+        run: () => {
+          if (this.#areAllEnemiesDead()) {
+            this.#endCombat(true);
+            return { stop: true };
+          }
+        },
+      },
+      ...this.#buildPostPlayerActionSteps(ENEMY_RECOVERY_MS),
+    ]);
+  }
+
+  /**
+   * @param {import("./entities/Enemy.js").Enemy} enemy
+   * @param {number} damage
+   */
+  #applyDamageAndBuildHitPayload(enemy, damage) {
+    const payload = this.#buildEnemyHitPayload(enemy, damage);
+    enemy.takeDamage(damage);
+    return {
+      ...payload,
+      hpPercent: enemy.getHpPercent(),
+    };
+  }
+
+  /**
+   * @param {import("./entities/Enemy.js").Enemy} enemy
+   * @param {number} damage
+   */
+  #buildEnemyHitPayload(enemy, damage) {
+    const enemyConfig = getEnemyConfig(enemy.enemyId);
+    const visual = enemyConfig.visual ?? {};
+    const onHitEffects = visual.feedback?.onHit ?? ["redBlink", "shake", "bloodSplash"];
+    const onHitEffectOptions = {
+      ...(visual.feedback?.effectOptions ?? {}),
+      bloodSplash: getBloodSplashEffectOptions(enemyConfig),
+      floatingText: getFloatingTextEffectOptions(enemyConfig, damage),
+    };
+
+    return {
+      combatantId: enemy.id,
+      enemyId: enemy.enemyId,
+      damage,
+      previousHpPercent: enemy.getHpPercent(),
+      effects: onHitEffects,
+      effectOptions: onHitEffectOptions,
+    };
+  }
+
+  /**
+   * @param {import("./entities/Enemy.js").Enemy} enemy
+   */
+  #buildEnemyDeathTarget(enemy) {
+    const enemyConfig = getEnemyConfig(enemy.enemyId);
+    return {
+      combatantId: enemy.id,
+      enemyId: enemy.enemyId,
+      effects: getOnDeathEffects(enemyConfig),
+      effectOptions: getOnDeathEffectOptions(enemyConfig),
+    };
+  }
+
+  /**
+   * @param {() => object[]} getTargets
+   */
+  #buildEnemiesHitFeedbackStep(getTargets) {
+    return {
+      async: true,
+      run: (_ctx, done) => {
+        const targets = getTargets();
+        if (!targets.length) {
+          done();
+          return;
+        }
+
+        emit(GameEvents.COMBAT_FEEDBACK_REQUEST, {
+          type: "enemies_hit",
+          targets,
+        });
+        setFeedbackCompleteHandler(() => done());
+      },
+    };
+  }
+
+  /**
+   * @param {() => object[]} getTargets
+   */
+  #buildEnemiesDeathFeedbackStep(getTargets) {
+    return {
+      async: true,
+      run: (_ctx, done) => {
+        const targets = getTargets();
+        if (!targets.length) {
+          done();
+          return;
+        }
+
+        emit(GameEvents.COMBAT_FEEDBACK_REQUEST, {
+          type: "enemies_death",
+          targets,
+        });
+        setFeedbackCompleteHandler(() => done());
+      },
+    };
+  }
+
+  #beginPlayerActionResolution() {
+    this.#isResolvingPlayerAction = true;
+    this.phase = "resolving";
+  }
+
+  /**
+   * @returns {"none" | "busy" | "turn"}
+   */
+  #getActionsLock() {
+    if (this.phase === "player") {
+      return "none";
+    }
+
+    if (this.phase === "ended") {
+      return "turn";
+    }
+
+    return this.#isResolvingPlayerAction ? "busy" : "turn";
   }
 
   /**
@@ -477,6 +621,12 @@ export class CombatEngine {
    */
   #buildAllEnemyTurnSteps(recoveryMs) {
     return [
+      {
+        run: () => {
+          this.#isResolvingPlayerAction = false;
+          this.#broadcastState();
+        },
+      },
       {
         async: true,
         run: async (_ctx, done) => {
@@ -563,13 +713,43 @@ export class CombatEngine {
     return enemies;
   }
 
+  /**
+   * После AP-действия: либо оставить игроку ход, либо передать врагам.
+   * @param {number} recoveryMs
+   */
+  #buildPostPlayerActionSteps(recoveryMs) {
+    if (this.actionPoints.isEmpty) {
+      return [
+        ...this.#buildAllEnemyTurnSteps(recoveryMs),
+        this.#buildReturnToPlayerStep(),
+      ];
+    }
+
+    return [this.#buildReturnToPlayerSameTurnStep()];
+  }
+
+  #buildReturnToPlayerSameTurnStep() {
+    return {
+      run: () => {
+        if (this.phase === "ended") {
+          return;
+        }
+        this.#isResolvingPlayerAction = false;
+        this.phase = "player";
+        this.#broadcastState();
+      },
+    };
+  }
+
   #buildReturnToPlayerStep() {
     return {
       run: () => {
         if (this.phase === "ended") {
           return;
         }
+        this.#isResolvingPlayerAction = false;
         this.#tickAbilityCooldowns();
+        this.actionPoints.resetTurn();
         this.phase = "player";
         this.#broadcastState();
       },
@@ -588,15 +768,25 @@ export class CombatEngine {
     this.#sanitizeSelectedTarget();
     const canAct = this.phase === "player";
     const { player } = this.encounter;
+    const hasAliveEnemies = this.#getAliveEnemies().length > 0;
+    const canAttackReady =
+      hasAliveEnemies &&
+      this.actionPoints.canUse(COMBAT_ACTION_IDS.attack, DEFAULT_ACTION_COST);
+    const canAttack = canAct && canAttackReady;
+
     emit(GameEvents.COMBAT_STATE, {
       phase: this.phase,
       canAct,
+      canAttack,
+      canAttackReady,
+      actionsLock: this.#getActionsLock(),
       victory: this.victory,
       selectedTargetId: this.selectedTargetId,
       player: player.toSnapshot(),
       enemies: this.encounter.enemies.map((e) => e.toSnapshot()),
       lootDrops: this.#lootDrops.filter((d) => !d.pickedUp).map((d) => d.toSnapshot()),
       chests: this.#chests.map((c) => c.toSnapshot()),
+      actionPoints: this.actionPoints.toSnapshot(),
       abilities: this.#buildAbilityStates(canAct, player),
     });
   }
@@ -606,6 +796,8 @@ export class CombatEngine {
    * @param {import("./entities/Combatant.js").Combatant} player
    */
   #buildAbilityStates(canAct, player) {
+    const hasAliveEnemies = this.#getAliveEnemies().length > 0;
+
     return this.combatAbilityIds.map((id) => {
       const config = getCombatAbilityConfig(id);
       const cooldownRemaining = this.abilityCooldowns.get(id) ?? 0;
@@ -616,13 +808,28 @@ export class CombatEngine {
       const resourceCount = resourceId ? player.getResourceCount(resourceId) : 0;
       const hasResource = !resourceId || resourceCount >= resourceCost;
 
+      const canUseActionPoints = this.actionPoints.canUse(
+        COMBAT_ACTION_IDS.ability(id),
+        DEFAULT_ACTION_COST,
+      );
+
+      let canUseReady = !onCooldown && hasResource && canUseActionPoints;
+      if (config.kind === "heal") {
+        canUseReady = canUseReady && !atFullHp;
+      } else if (config.kind === "aoe_damage") {
+        canUseReady = canUseReady && hasAliveEnemies;
+      }
+
+      const canUse = canAct && canUseReady;
+
       return {
         id,
         name: config.name,
         resourceId,
         resourceCount,
         cooldownRemaining,
-        canUse: canAct && !onCooldown && !atFullHp && hasResource,
+        canUse,
+        canUseReady,
       };
     });
   }

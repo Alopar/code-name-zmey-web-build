@@ -4,12 +4,20 @@ import { getAudioManager } from "../audio/AudioManager.js";
 import { getLootVisualConfig } from "../loot/config/lootVisuals.js";
 import { createCombatWorldRig } from "./combatWorldPivot.js";
 import { createSoftShadowImage } from "./softShadow.js";
+import { attachCombatShadow, resolveShadowLayer } from "./attachCombatShadow.js";
+import { shadowFrameOffsetToView, spriteFrameOffsetToView } from "./visualFrameOffset.js";
 
 const DEFAULT_SHADOW = Object.freeze({
+  offsetX: 0,
   offsetY: 0,
   widthScale: 0.9,
   heightScale: 0.22,
   alpha: 0.55,
+});
+
+const DEFAULT_SPRITE = Object.freeze({
+  offsetX: 0,
+  offsetY: 0,
 });
 
 const SPAWN_ANIM_MS = 380;
@@ -26,13 +34,26 @@ const STACK_LABEL_OFFSET_Y = 6;
 /**
  * @param {object} visual
  */
+function resolveSpriteOptions(visual) {
+  const sprite = visual.sprite ?? {};
+  return {
+    offsetX: sprite.offsetX ?? DEFAULT_SPRITE.offsetX,
+    offsetY: sprite.offsetY ?? DEFAULT_SPRITE.offsetY,
+  };
+}
+
+/**
+ * @param {object} visual
+ */
 function resolveShadowOptions(visual) {
   const shadow = visual.shadow ?? {};
   return {
+    offsetX: shadow.offsetX ?? DEFAULT_SHADOW.offsetX,
     offsetY: shadow.offsetY ?? DEFAULT_SHADOW.offsetY,
     widthScale: shadow.widthScale ?? DEFAULT_SHADOW.widthScale,
     heightScale: shadow.heightScale ?? DEFAULT_SHADOW.heightScale,
     alpha: shadow.alpha ?? DEFAULT_SHADOW.alpha,
+    layer: resolveShadowLayer(shadow),
   };
 }
 
@@ -50,6 +71,7 @@ function playLootSfx(audioKey) {
  */
 export function spawnCombatLootPresentation(scene, drop) {
   const visual = getLootVisualConfig(drop.resourceId);
+  const spriteOpts = resolveSpriteOptions(visual);
   const shadowOpts = resolveShadowOptions(visual);
   const { assetKey, displayHeight } = visual;
 
@@ -66,10 +88,22 @@ export function spawnCombatLootPresentation(scene, drop) {
   const baseScale = displayHeight / sprite.height;
   sprite.setScale(0);
 
+  const spriteViewPos = spriteFrameOffsetToView(
+    spriteOpts.offsetX,
+    spriteOpts.offsetY,
+    baseScale,
+  );
+  sprite.setPosition(spriteViewPos.x, spriteViewPos.y);
+
   const shadowW = sprite.width * baseScale * shadowOpts.widthScale;
   const shadowH = shadowW * shadowOpts.heightScale;
   const shadow = createSoftShadowImage(scene, shadowW, shadowH, shadowOpts.alpha);
-  shadow.setPosition(0, -shadowOpts.offsetY * baseScale);
+  const shadowViewPos = shadowFrameOffsetToView(
+    shadowOpts.offsetX,
+    shadowOpts.offsetY,
+    baseScale,
+  );
+  shadow.setPosition(shadowViewPos.x, shadowViewPos.y);
   shadow.setScale(0);
 
   /** @type {Phaser.GameObjects.Text | null} */
@@ -92,7 +126,7 @@ export function spawnCombatLootPresentation(scene, drop) {
     view.add(stackLabel);
   }
 
-  pivot.add(shadow);
+  attachCombatShadow(pivot, view, shadow, shadowOpts.layer);
   view.add(sprite);
   sprite.setInteractive({ useHandCursor: true });
 
@@ -191,6 +225,7 @@ export function spawnCombatLootPresentation(scene, drop) {
 
   return {
     dropId: drop.id,
+    resourceId: drop.resourceId,
     pivot,
     view,
     /** @deprecated alias pivot */

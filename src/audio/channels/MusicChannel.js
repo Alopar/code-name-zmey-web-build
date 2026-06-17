@@ -14,6 +14,8 @@ export class MusicChannel {
     this.current = null;
     /** @type {Promise<void> | null} */
     this.fadeTask = null;
+    /** @type {number} */
+    this.fadeGeneration = 0;
   }
 
   /**
@@ -57,12 +59,22 @@ export class MusicChannel {
 
     const sound = this.game.sound.add(key, { loop });
     this.current = sound;
+    const generation = this.fadeGeneration;
 
     if (fadeInMs > 0) {
       sound.setVolume(0);
       sound.play();
-      this.fadeTask = fadeSoundVolume(sound, 0, targetVolume, fadeInMs);
+      this.fadeTask = fadeSoundVolume(
+        sound,
+        0,
+        targetVolume,
+        fadeInMs,
+        () => generation === this.fadeGeneration,
+      );
       await this.fadeTask;
+      if (generation !== this.fadeGeneration) {
+        return;
+      }
       return;
     }
 
@@ -100,6 +112,9 @@ export class MusicChannel {
     if (!this.current) {
       return;
     }
+
+    this.fadeGeneration += 1;
+    this.fadeTask = null;
     this.current.setVolume(this.manager.getEffectiveVolume("music"));
   }
 }

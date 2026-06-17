@@ -15,6 +15,11 @@ export const RESOURCE_CONFIGS = Object.freeze({
     name: "Стимулятор",
     type: RESOURCE_TYPES.TACTICAL,
   }),
+  grenade: Object.freeze({
+    id: "grenade",
+    name: "Граната",
+    type: RESOURCE_TYPES.TACTICAL,
+  }),
 });
 
 /**

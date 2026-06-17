@@ -4,12 +4,20 @@ import { getLootContainerConfig } from "../loot/config/lootContainers.js";
 import { createCombatWorldRig } from "./combatWorldPivot.js";
 import { runEnemyFeedback } from "./feedback/runEnemyFeedback.js";
 import { createSoftShadowImage } from "./softShadow.js";
+import { attachCombatShadow, resolveShadowLayer } from "./attachCombatShadow.js";
+import { shadowFrameOffsetToView, spriteFrameOffsetToView } from "./visualFrameOffset.js";
 
 const DEFAULT_SHADOW = Object.freeze({
+  offsetX: 0,
   offsetY: 0,
   widthScale: 0.85,
   heightScale: 0.25,
   alpha: 0.55,
+});
+
+const DEFAULT_SPRITE = Object.freeze({
+  offsetX: 0,
+  offsetY: 0,
 });
 
 const SPAWN_ANIM_MS = 420;
@@ -19,13 +27,26 @@ const OPEN_BOUNCE_MS = 280;
 /**
  * @param {object} visual
  */
+function resolveSpriteOptions(visual) {
+  const sprite = visual.sprite ?? {};
+  return {
+    offsetX: sprite.offsetX ?? DEFAULT_SPRITE.offsetX,
+    offsetY: sprite.offsetY ?? DEFAULT_SPRITE.offsetY,
+  };
+}
+
+/**
+ * @param {object} visual
+ */
 function resolveShadowOptions(visual) {
   const shadow = visual.shadow ?? {};
   return {
+    offsetX: shadow.offsetX ?? DEFAULT_SHADOW.offsetX,
     offsetY: shadow.offsetY ?? DEFAULT_SHADOW.offsetY,
     widthScale: shadow.widthScale ?? DEFAULT_SHADOW.widthScale,
     heightScale: shadow.heightScale ?? DEFAULT_SHADOW.heightScale,
     alpha: shadow.alpha ?? DEFAULT_SHADOW.alpha,
+    layer: resolveShadowLayer(shadow),
   };
 }
 
@@ -44,6 +65,7 @@ function playChestSfx(audioKey) {
 export function spawnCombatChestPresentation(scene, chest) {
   const config = getLootContainerConfig(chest.containerId);
   const { visual, interaction } = config;
+  const spriteOpts = resolveSpriteOptions(visual);
   const shadowOpts = resolveShadowOptions(visual);
   const { assetKey, closed, open, displayHeight } = visual;
 
@@ -60,13 +82,25 @@ export function spawnCombatChestPresentation(scene, chest) {
   const baseScale = displayHeight / sprite.height;
   sprite.setScale(0);
 
+  const spriteViewPos = spriteFrameOffsetToView(
+    spriteOpts.offsetX,
+    spriteOpts.offsetY,
+    baseScale,
+  );
+  sprite.setPosition(spriteViewPos.x, spriteViewPos.y);
+
   const shadowW = sprite.width * baseScale * shadowOpts.widthScale;
   const shadowH = shadowW * shadowOpts.heightScale;
   const shadow = createSoftShadowImage(scene, shadowW, shadowH, shadowOpts.alpha);
-  shadow.setPosition(0, -shadowOpts.offsetY * baseScale);
+  const shadowViewPos = shadowFrameOffsetToView(
+    shadowOpts.offsetX,
+    shadowOpts.offsetY,
+    baseScale,
+  );
+  shadow.setPosition(shadowViewPos.x, shadowViewPos.y);
   shadow.setScale(0);
 
-  pivot.add(shadow);
+  attachCombatShadow(pivot, view, shadow, shadowOpts.layer);
   view.add(sprite);
   sprite.setInteractive({ useHandCursor: true });
 
@@ -120,6 +154,7 @@ export function spawnCombatChestPresentation(scene, chest) {
 
   return {
     chestId: chest.id,
+    containerId: chest.containerId,
     pivot,
     view,
     /** @deprecated alias pivot */

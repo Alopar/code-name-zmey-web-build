@@ -1,0 +1,16 @@
+{
+  "name": "Code Name: ZMEY",
+  "short_name": "ZMEY",
+  "display": "fullscreen",
+  "orientation": "landscape",
+  "start_url": "./index.html",
+  "background_color": "#050608",
+  "theme_color": "#050608",
+  "icons": [
+    {
+      "src": "./assets/images/site-icon.png",
+      "sizes": "512x512",
+      "type": "image/png"
+    }
+  ]
+}

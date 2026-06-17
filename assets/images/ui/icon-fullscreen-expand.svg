@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" aria-hidden="true">
+  <g fill="none" stroke="#e8d78a" stroke-width="4.5" stroke-linecap="square" stroke-linejoin="miter">
+    <path d="M6 6H20M6 6V20" />
+    <path d="M58 6H44M58 6V20" />
+    <path d="M58 58H44M58 58V44" />
+    <path d="M6 58H20M6 58V44" />
+  </g>
+</svg>

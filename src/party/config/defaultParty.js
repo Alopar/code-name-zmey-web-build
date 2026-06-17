@@ -6,5 +6,6 @@ export const DEFAULT_PARTY_CONFIG = Object.freeze({
   initialResources: Object.freeze({
     medkit: 3,
     stimulator: 3,
+    grenade: 3,
   }),
 });

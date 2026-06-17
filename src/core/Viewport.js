@@ -12,10 +12,37 @@ export function updateViewportScale() {
     return;
   }
 
-  const scale = Math.min(
-    window.innerWidth / VIEWPORT_WIDTH,
-    window.innerHeight / VIEWPORT_HEIGHT,
-  );
+  const layoutWidth = window.visualViewport?.width ?? window.innerWidth;
+  const layoutHeight = window.visualViewport?.height ?? window.innerHeight;
+
+  const scale = Math.min(layoutWidth / VIEWPORT_WIDTH, layoutHeight / VIEWPORT_HEIGHT);
 
   viewport.style.transform = `scale(${scale})`;
+}
+
+/** @type {(() => void) | null} */
+let removeViewportListeners = null;
+
+/**
+ * Подписывает пересчёт масштаба на resize, orientationchange и visualViewport.
+ */
+export function initViewportScaleListeners() {
+  if (removeViewportListeners) {
+    return;
+  }
+
+  const handler = () => {
+    updateViewportScale();
+  };
+
+  window.addEventListener("resize", handler);
+  window.addEventListener("orientationchange", handler);
+  window.visualViewport?.addEventListener("resize", handler);
+
+  removeViewportListeners = () => {
+    window.removeEventListener("resize", handler);
+    window.removeEventListener("orientationchange", handler);
+    window.visualViewport?.removeEventListener("resize", handler);
+    removeViewportListeners = null;
+  };
 }

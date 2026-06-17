@@ -6,7 +6,7 @@ import { preloadAudioAssetsInBackground } from "../audio/loadAudioAssets.js";
 import { initSceneAudio } from "../audio/initSceneAudio.js";
 import { blockBrowserDefaultsOnPage } from "../core/blockBrowserDefaults.js";
 import { assertInputLayersReady } from "../core/InputLayers.js";
-import { updateViewportScale } from "../core/Viewport.js";
+import { initViewportScaleListeners, updateViewportScale } from "../core/Viewport.js";
 import { createGameConfig } from "../game/createGameConfig.js";
 import { initGameController } from "../game/GameController.js";
 import { initHeroController } from "../hero/HeroController.js";
@@ -16,6 +16,8 @@ import { initCombatLocationUI } from "../locations/initCombatLocationUI.js";
 import { initCombatUI } from "../ui/CombatUI.js";
 import { loadUserSettings, applyUserSettings } from "../settings/UserSettings.js";
 import { initGameResultModal } from "../ui/GameResultModal.js";
+import { initFullscreenControls } from "../ui/fullscreenControl.js";
+import { initUiScale } from "../ui/uiScale.js";
 import { initSettingsModal } from "../ui/SettingsModal.js";
 import { initHeroUI } from "../ui/HeroUI.js";
 import { initMapUI } from "../ui/MapUI.js";
@@ -25,7 +27,9 @@ import { initInfoToastUI } from "../ui/infoToast/index.js";
 import { initUIManager } from "../ui/UIManager.js";
 import { initDebugSystem } from "../debug/initDebugSystem.js";
 import { initNarrationController } from "../narration/NarrationController.js";
+import { initMobileAppWrapper } from "../wrapper/mobileAppWrapper.js";
 import { dismissAppLoadCurtain } from "./AppLoadCurtain.js";
+import { initLobbyPresentation } from "../game/lobby/lobbyPresentation.js";
 import { prepareScreenAssets } from "./tasks/prepareScreenAssets.js";
 import { waitForLobbyBootstrapAssets } from "./tasks/waitForLobbyBootstrapAssets.js";
 import { waitForLobbySpace } from "./tasks/waitForLobbySpace.js";
@@ -62,7 +66,9 @@ async function runBootstrapTask(task, ctx) {
 export async function runAppBootstrap() {
   blockBrowserDefaultsOnPage();
   updateViewportScale();
-  window.addEventListener("resize", updateViewportScale);
+  initViewportScaleListeners();
+  loadUserSettings();
+  initUiScale();
 
   const game = new Phaser.Game(createGameConfig());
   const ctx = { game };
@@ -73,10 +79,11 @@ export async function runAppBootstrap() {
   initLootController();
   initNarrationController();
   initUIManager();
+  initLobbyPresentation(game);
   initInfoToastUI();
   initModalManager(game);
   initGameResultModal();
-  loadUserSettings();
+  initFullscreenControls();
   initSettingsModal();
   initNarrationUI();
   initCombatUI();
@@ -88,11 +95,12 @@ export async function runAppBootstrap() {
   await Promise.all(BOOTSTRAP_TASKS.map((task) => runBootstrapTask(task, ctx)));
 
   initAudio(game);
-  initSceneAudio();
   applyUserSettings();
+  initSceneAudio();
   initCombatAudio();
   preloadAudioAssetsInBackground(game, DEFERRED_AUDIO_ASSET_PATHS);
 
   dismissAppLoadCurtain();
+  initMobileAppWrapper();
   assertInputLayersReady();
 }
